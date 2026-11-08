@@ -1,0 +1,19 @@
+# Gradle / Android Studio
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+.DS_Store
+
+# Signing key: never commit. Keep a private backup; losing it breaks in-place updates.
+local-test.jks
+proxycheck.key
+*.idsig
