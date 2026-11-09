@@ -26,7 +26,9 @@ address.
 
 ## Install
 
-There are no prebuilt releases. Build the APK yourself (see [Build](#build)), then:
+Download `RouterVPNDot-<version>.apk` from the
+[latest release](https://github.com/MaurizioJJ/router-vpn-dot/releases/latest), or
+build it yourself (see [Build](#build)). Then:
 
 1. Copy the APK to the device and install it (allow installs from unknown sources
    when Android asks).
@@ -67,6 +69,9 @@ a full outline when the allowance is used up.
 - A network change triggers an immediate re-check.
 
 ## Build
+
+If you build it yourself, Android treats your APK as a different signer from the
+release APK: uninstall one before installing the other.
 
 You need:
 
