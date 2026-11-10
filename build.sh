@@ -16,6 +16,8 @@ java -m jdk.compiler/com.sun.tools.javac.Main -d build/test src/local/routervpnd
 java -cp build/test IpLabelTest
 java -m jdk.compiler/com.sun.tools.javac.Main -d build/test src/local/routervpndot/StateLogic.java src/local/routervpndot/VpnDuration.java tests/VpnDurationTest.java
 java -cp build/test VpnDurationTest
+java -m jdk.compiler/com.sun.tools.javac.Main -d build/test src/local/routervpndot/RouterVpn.java tests/RouterVpnTest.java
+java -cp build/test RouterVpnTest
 "$BT/aapt2" compile --dir res -o build/resources.zip
 "$BT/aapt2" link -I "$AJ" --manifest AndroidManifest.xml --java build/gen -o build/base.apk build/resources.zip
 KEY="$({ tr -d '[:space:]' < proxycheck.key; } 2>/dev/null || true)"
@@ -34,6 +36,6 @@ PY
 if [[ ! -f local-test.jks ]]; then
  keytool -genkeypair -keystore local-test.jks -storepass android -keypass android -alias routerdot -keyalg RSA -keysize 2048 -validity 3650 -dname 'CN=Router VPN Dot Local Test'
 fi
-"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.13.apk build/aligned.apk
-"$BT/apksigner" verify --verbose RouterVPNDot-0.13.apk
-"$BT/zipalign" -c 4 RouterVPNDot-0.13.apk
+"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.14.apk build/aligned.apk
+"$BT/apksigner" verify --verbose RouterVPNDot-0.14.apk
+"$BT/zipalign" -c 4 RouterVPNDot-0.14.apk

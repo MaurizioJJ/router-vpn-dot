@@ -18,6 +18,11 @@ address.
 > Green is a public-database classification, not proof that your tunnel is up. It
 > does not check per-app routing, DNS or IPv6.
 
+If your router is a **UniFi gateway** running a **NordVPN WireGuard** VPN client,
+the app can also switch that client to another country from the TV, for streaming
+apps that refuse one country's VPN exits. See
+[Switch the router's VPN server](#switch-the-routers-vpn-server).
+
 ## Requirements
 
 - Android 8.0 (API 26) or newer. Built and tested against Android 11 (API 30).
@@ -67,6 +72,111 @@ a full outline when the allowance is used up.
   check returns the same IP.
 - Failed lookups retry after 15 s, 30 s, 60 s, 5 min, then every 30 min.
 - A network change triggers an immediate re-check.
+
+## Switch the router's VPN server
+
+Some streaming apps refuse a VPN exit in one country and accept another. The
+**Router VPN server** section of the settings screen moves the router's NordVPN
+tunnel to another country without touching the UniFi app:
+
+1. **Gateway**: the gateway's LAN address, e.g. `192.168.1.1`.
+2. **UniFi API key**: see [step 3](#3-create-a-unifi-api-key) below.
+3. **Check VPN client**: confirms a WireGuard VPN client exists and shows its
+   server and tunnel status. If there are several, pick the one to control.
+4. **Switch server country**: pick a country from NordVPN's list. The app asks
+   NordVPN for its least-loaded WireGuard server there, writes that server's IP
+   and public key into the VPN client, and waits up to 60 s for the tunnel to
+   report connected. Then the dot reclassifies the new exit.
+
+Only the server (peer IP and peer public key) changes. Your private key, tunnel
+address, DNS and routes stay as you set them. A client named like `NordVPN-CZ` is
+renamed to match the new country (`NordVPN-DE`); any other name is left alone.
+
+**Forget gateway** clears the address, key, saved certificate and chosen client.
+
+### What you need
+
+- A UniFi gateway running UniFi OS with the Network application (UCG Ultra/Max,
+  UDM, UDR, UXG…) and its **default** site.
+- A NordVPN subscription.
+- The TV device on the same LAN as the gateway.
+
+UniFi renames menus between versions. The paths below are from Network 9.x; look
+for the nearest match on yours.
+
+### 1. Create the NordVPN WireGuard client on the gateway
+
+NordVPN doesn't hand out WireGuard config files, so you build one from its API:
+
+1. **Get your NordLynx private key.** In the Nord Account dashboard open
+   *NordVPN → Set up NordVPN manually*, verify by e-mail and **generate a new
+   access token**. Then on any computer:
+
+   ```sh
+   curl -s -u token:<ACCESS_TOKEN> https://api.nordvpn.com/v1/users/services/credentials
+   ```
+
+   Copy `nordlynx_private_key` from the reply. It's the same for every NordVPN
+   server. Treat it like a password.
+
+2. **Pick a first server.** Replace `57` with a country id from
+   `https://api.nordvpn.com/v1/servers/countries` (57 = Czech Republic,
+   81 = Germany):
+
+   ```sh
+   curl -s -g 'https://api.nordvpn.com/v1/servers/recommendations?filters[country_id]=57&filters[servers_technologies][identifier]=wireguard_udp&limit=1'
+   ```
+
+   Note `hostname`, `station` (the server IP) and, under the `wireguard_udp`
+   technology, the `public_key` value.
+
+3. **Create the client.** UniFi Network → *Settings → VPN → VPN Client → Create
+   New* → **WireGuard**, configuration **Manual**:
+
+   | Field | Value |
+   |-------|-------|
+   | Name | `NordVPN-CZ` (country code at the end lets the app keep it current) |
+   | Private key | `nordlynx_private_key` from step 1 |
+   | Tunnel IP / Address | `10.5.0.2/32` |
+   | Server address | `station` from step 2 |
+   | Port | `51820` |
+   | Public key | `public_key` from step 2 |
+   | Primary / secondary DNS | `103.86.96.100` / `103.86.99.100` |
+
+   Save, and check under *Settings → VPN → VPN Client* that it shows
+   **Connected**.
+
+### 2. Route the TV device through it
+
+UniFi Network → *Settings → Routing → Policy-Based Routes* (older versions:
+*Traffic Routes*) → **Create Entry**:
+
+- Interface / next hop: the VPN client from step 1.
+- Source / devices: the TV device. Give it a fixed IP first (*Client devices → the
+  device → Settings → Fixed IP address*) so the rule keeps matching.
+- Destination: Internet (all traffic).
+- Kill switch: your choice. With it off, traffic falls back to the normal
+  internet when the tunnel drops, and the dot turns red.
+
+### 3. Create a UniFi API key
+
+UniFi Network → *Settings → Control Plane → Integrations* → **Create API Key**.
+Copy it once; UniFi doesn't show it again. Enter it in the app with the remote's
+on-screen keyboard.
+
+The key carries the full rights of the admin who created it, and it's stored on
+the TV device (app backups are off, so it isn't copied off the device by Android
+backup). To limit the damage if the device is lost, create the key under a
+separate local admin limited to the Network application (Full Management is needed
+to edit the VPN client), and delete the key in
+*Integrations* when you no longer need it.
+
+### Gateway certificate
+
+UniFi gateways use a self-signed HTTPS certificate. The app trusts the certificate
+it sees on the first connection and refuses any other one afterwards ("gateway
+certificate changed"). If you replaced the certificate or the gateway, press
+**Forget gateway** and set it up again.
 
 ## Build
 
@@ -131,6 +241,9 @@ an APK built with your key**.
 - The app contacts `api.ipify.org`, `checkip.amazonaws.com` and `proxycheck.io`.
   These services see your public IP address.
 - Settings and the last result are stored only on the device.
+- Only if you set up the router VPN switch: the UniFi API key is stored on the
+  device and sent only to your gateway, and the country list and server choice
+  come from `api.nordvpn.com`.
 - No accounts, analytics, ads, storage access or accessibility service.
 
 ## Known limits
@@ -154,6 +267,8 @@ an APK built with your key**.
 | `BootReceiver.java`, `AutoStart.java` | Start after boot or update, recovery alarm |
 | `Diagnostics.java`, `LogTimeline.java` | Event log and exit records |
 | `VpnDuration.java` | "VPN detected since" duration |
+| `UnifiClient.java` | UniFi Network API and NordVPN server API calls for the router VPN switch |
+| `RouterVpn.java` | Pure helpers for the switch (address, key and name checks) |
 | `tests/` | Plain-Java unit tests run by `build.sh` |
 
 ## License
@@ -168,4 +283,4 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.
 
-This project is not affiliated with proxycheck.io, ipify or Amazon.
+This project is not affiliated with proxycheck.io, ipify, Amazon, Ubiquiti (UniFi) or NordVPN.

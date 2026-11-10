@@ -11,6 +11,7 @@ import android.os.*;
 import android.provider.Settings;
 import android.view.*;
 import android.widget.*;
+import java.util.List;
 
 public class MainActivity extends Activity {
  private LinearLayout body;
@@ -38,7 +39,7 @@ public class MainActivity extends Activity {
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(0xFF0B1020);
   body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(48),dp(28),dp(48),dp(32));scroll.addView(body);setContentView(scroll);
   TextView title=text("ROUTER VPN DOT",28,0xFFF8FAFC);title.setTypeface(null,Typeface.BOLD);
-  text("Version 0.13",14,0xFF94A3B8);
+  text("Version 0.14",14,0xFF94A3B8);
   status=text("Checking status",21,0xFFCBD5E1);status.setPadding(0,dp(14),0,dp(14));
   toggle=button("Start monitoring",()->{
    if(MonitorService.running){Config.prefs(this).edit().putBoolean("enabled",false).apply();stopService(new Intent(this,MonitorService.class));}
@@ -62,13 +63,87 @@ public class MainActivity extends Activity {
   Switch alerts=new Switch(this);alerts.setText("Show warning banner when VPN is off or unverified");alerts.setTextSize(18);alerts.setPadding(dp(12),dp(16),dp(12),dp(16));alerts.setChecked(Config.prefs(this).getBoolean("banner",true));alerts.setOnCheckedChangeListener((b,on)->Config.prefs(this).edit().putBoolean("banner",on).apply());body.addView(alerts);
   Switch boot=new Switch(this);boot.setText("Resume monitoring after reboot");boot.setTextSize(18);boot.setPadding(dp(12),dp(16),dp(12),dp(16));boot.setChecked(Config.prefs(this).getBoolean("boot",false));boot.setOnCheckedChangeListener((b,on)->Config.prefs(this).edit().putBoolean("boot",on).apply());body.addView(boot);
   button("Show diagnostics",()->new AlertDialog.Builder(this).setTitle("Service and crash history").setMessage("Current status: "+MonitorService.label(MonitorService.currentState(this))+"\nIP: "+MonitorService.lastIp+"\n"+MonitorService.detail+"\n\n"+Diagnostics.report(this)).setPositiveButton("Close",null).show());
+  routerSection();
   text("Privacy & limits",22,0xFFF8FAFC);
-  text("This app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. No account, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. The last successful classification is saved across restarts. It is reused only when a fresh public-IP check matches; database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.",14,0xFF94A3B8);
+  text("This app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. If you set up the router VPN switch, the UniFi API key is stored on this device and sent only to your gateway; the country list and server choice come from api.nordvpn.com. No account login, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. The last successful classification is saved across restarts. It is reused only when a fresh public-IP check matches; database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.",14,0xFF94A3B8);
   toggle.requestFocus();
  }
  private void brightness(String key,String name,int defaultValue){
   Button b=button(name+": "+Config.prefs(this).getInt(key,defaultValue)+"%",()->{});
   b.setOnClickListener(v->{int value=Config.prefs(this).getInt(key,defaultValue);int[] levels={5,10,15,20,30,35,40,60,80,100};int i=0;while(i<levels.length && levels[i]<=value)i++;value=levels[i%levels.length];Config.prefs(this).edit().putInt(key,value).apply();b.setText(name+": "+value+"%");});
+ }
+ // Router VPN server switch: UniFi gateway + NordVPN WireGuard client. See README "Switch the router's VPN server".
+ private TextView routerStatus;
+ private void routerSection(){
+  text("Router VPN server (UniFi + NordVPN)",22,0xFFF8FAFC);
+  routerStatus=text("",16,0xFFCBD5E1);
+  SharedPreferences p=Config.prefs(this);
+  Button gw=button("",()->{});
+  Button key=button("",()->{});
+  Runnable labels=()->{
+   gw.setText("Gateway: "+(p.getString("unifiGateway","").isEmpty()?"not set":p.getString("unifiGateway","")));
+   key.setText("UniFi API key: "+(p.getString("unifiApiKey","").isEmpty()?"not set":"saved"));
+   if(!new UnifiClient(this).configured())routerStatus.setText("Set the gateway and API key, then Check VPN client.");
+  };
+  labels.run();
+  gw.setOnClickListener(v->ask("UniFi gateway address","192.168.1.1",false,s->{
+   String url=RouterVpn.gateway(s);
+   if(url.isEmpty()){routerStatus.setText("Use the gateway's IP or name, e.g. 192.168.1.1 (https only).");return;}
+   p.edit().putString("unifiGateway",url).remove("unifiPin").remove("unifiVpnId").apply();labels.run();
+  }));
+  key.setOnClickListener(v->ask("UniFi API key","",true,s->{if(!s.trim().isEmpty())p.edit().putString("unifiApiKey",s.trim()).apply();labels.run();}));
+  button("Check VPN client",()->background(c->{
+   List<UnifiClient.VpnClient> all=c.clients();
+   if(all.isEmpty())return "No WireGuard VPN client on this gateway. Create one first: see the README.";
+   UnifiClient.VpnClient v=c.selected(all);
+   if(v==null){runOnUiThread(()->pickClient(all));return "Several WireGuard VPN clients: pick one.";}
+   String st=c.status(v);
+   return v.name+" → server "+v.peerIp+"\n"+(st.isEmpty()?"No live tunnel reported":st);
+  }));
+  button("Switch server country",()->background(c->{
+   List<UnifiClient.VpnClient> all=c.clients();UnifiClient.VpnClient v=c.selected(all);
+   if(v==null)return all.isEmpty()?"No WireGuard VPN client on this gateway. Create one first: see the README.":"Press Check VPN client first and pick one.";
+   List<UnifiClient.Country> countries=UnifiClient.countries();
+   runOnUiThread(()->pickCountry(v,countries));
+   return "Pick a country for "+v.name+".";
+  }));
+  button("Forget gateway",()->{p.edit().remove("unifiGateway").remove("unifiApiKey").remove("unifiPin").remove("unifiVpnId").apply();labels.run();});
+ }
+ private void pickClient(List<UnifiClient.VpnClient> all){
+  String[] names=new String[all.size()];for(int i=0;i<names.length;i++)names[i]=all.get(i).name+" ("+all.get(i).peerIp+")";
+  new AlertDialog.Builder(this).setTitle("WireGuard VPN client to control").setItems(names,(d,i)->{Config.prefs(this).edit().putString("unifiVpnId",all.get(i).id).apply();routerStatus.setText("Using "+all.get(i).name+".");}).show();
+ }
+ private void pickCountry(UnifiClient.VpnClient v,List<UnifiClient.Country> countries){
+  String[] names=new String[countries.size()];for(int i=0;i<names.length;i++)names[i]=countries.get(i).name;
+  new AlertDialog.Builder(this).setTitle("Switch "+v.name+" to").setItems(names,(d,i)->background(c->{
+   UnifiClient.Country country=countries.get(i);
+   String server=c.switchTo(v,country);
+   runOnUiThread(()->routerStatus.setText("Switching to "+server+"…"));
+   String ip=server.substring(server.lastIndexOf('(')+1,server.length()-1);
+   for(int n=0;n<20;n++){ // the gateway applies the change within a minute
+    Thread.sleep(3000);
+    String st=c.status(v);
+    if(st.equals("CONNECTED to "+ip))return country.name+": connected to "+server+".\nThe dot turns green once the new exit is classified.";
+   }
+   return country.name+": "+server+" saved, but the tunnel hasn't reported connected after 60 s. Press Check VPN client.";
+  })).show();
+ }
+ private interface RouterTask{String run(UnifiClient c) throws Exception;}
+ private void background(RouterTask task){
+  UnifiClient c=new UnifiClient(this);
+  if(!c.configured()){routerStatus.setText("Set the gateway and API key first.");return;}
+  routerStatus.setText("Working…");
+  new Thread(()->{
+   String out;
+   try{out=task.run(c);}catch(Exception e){out="Failed: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage());}
+   String shown=out;runOnUiThread(()->routerStatus.setText(shown));
+  }).start();
+ }
+ private interface Answer{void take(String s);}
+ private void ask(String title,String hint,boolean secret,Answer answer){
+  EditText in=new EditText(this);in.setHint(hint);in.setSingleLine(true);
+  if(secret)in.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+  new AlertDialog.Builder(this).setTitle(title).setView(in).setPositiveButton("Save",(d,w)->answer.take(in.getText().toString())).setNegativeButton("Cancel",null).show();
  }
  private void updateDot(){if(MonitorService.running)startForegroundService(new Intent(this,MonitorService.class));}
  private void permission(){
