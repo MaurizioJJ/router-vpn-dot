@@ -89,7 +89,7 @@ final class UnifiClient {
  }
 
  private String unifi(String method,String path,String body) throws Exception {
-  HttpsURLConnection c=(HttpsURLConnection)new URL(gateway+path).openConnection(Proxy.NO_PROXY);
+  HttpsURLConnection c=(HttpsURLConnection)open(gateway+path);
   c.setSSLSocketFactory(pinned());
   String host=new URL(gateway).getHost();
   c.setHostnameVerifier((h,s)->h.equals(host)); // the pin, not the name, authenticates a self-signed gateway
@@ -99,13 +99,19 @@ final class UnifiClient {
  }
 
  private static String get(String url,int limit) throws Exception {
+  return read(open(url),limit);
+ }
+
+ // All settings go on before anything is sent: once a request body is written the connection is
+ // open and Android throws "Already connected" on any further setter.
+ private static HttpURLConnection open(String url) throws IOException {
   HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection(Proxy.NO_PROXY);
-  return read(c,limit);
+  c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
+  c.setRequestProperty("User-Agent","RouterVPNDot/0.15");
+  return c;
  }
 
  private static String read(HttpURLConnection c,int limit) throws IOException {
-  c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("User-Agent","RouterVPNDot/0.14");
   try{
    int code=c.getResponseCode();
    if(code==401||code==403)throw new IOException("the gateway refused the API key (HTTP "+code+")");

@@ -36,6 +36,6 @@ PY
 if [[ ! -f local-test.jks ]]; then
  keytool -genkeypair -keystore local-test.jks -storepass android -keypass android -alias routerdot -keyalg RSA -keysize 2048 -validity 3650 -dname 'CN=Router VPN Dot Local Test'
 fi
-"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.14.apk build/aligned.apk
-"$BT/apksigner" verify --verbose RouterVPNDot-0.14.apk
-"$BT/zipalign" -c 4 RouterVPNDot-0.14.apk
+"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.15.apk build/aligned.apk
+"$BT/apksigner" verify --verbose RouterVPNDot-0.15.apk
+"$BT/zipalign" -c 4 RouterVPNDot-0.15.apk

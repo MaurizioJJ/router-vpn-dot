@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(0xFF0B1020);
   body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(48),dp(28),dp(48),dp(32));scroll.addView(body);setContentView(scroll);
   TextView title=text("ROUTER VPN DOT",28,0xFFF8FAFC);title.setTypeface(null,Typeface.BOLD);
-  text("Version 0.14",14,0xFF94A3B8);
+  text("Version 0.15",14,0xFF94A3B8);
   status=text("Checking status",21,0xFFCBD5E1);status.setPadding(0,dp(14),0,dp(14));
   toggle=button("Start monitoring",()->{
    if(MonitorService.running){Config.prefs(this).edit().putBoolean("enabled",false).apply();stopService(new Intent(this,MonitorService.class));}
