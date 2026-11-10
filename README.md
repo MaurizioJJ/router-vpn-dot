@@ -77,22 +77,53 @@ a full outline when the allowance is used up.
 
 Some streaming apps refuse a VPN exit in one country and accept another. The
 **Router VPN server** section of the settings screen moves the router's NordVPN
-tunnel to another country without touching the UniFi app:
+tunnel to another country without opening the UniFi app.
 
-1. **Gateway**: the gateway's LAN address, e.g. `192.168.1.1`.
-2. **UniFi API key**: see [step 3](#3-create-a-unifi-api-key) below.
-3. **Check VPN client**: confirms a WireGuard VPN client exists and shows its
-   server and tunnel status. If there are several, pick the one to control.
-4. **Switch server country**: pick a country from NordVPN's list. The app asks
-   NordVPN for its least-loaded WireGuard server there, writes that server's IP
-   and public key into the VPN client, and waits up to 60 s for the tunnel to
-   report connected. Then the dot reclassifies the new exit.
+Set up the router first ([steps 1 to 3](#what-you-need) below), then fill in the
+settings once:
+
+1. Open **Router VPN Dot** and scroll down to **Router VPN server (UniFi + NordVPN)**.
+2. Select **Gateway**, type the gateway's LAN address (for example `192.168.1.1`,
+   no `https://` needed) and select **Save**. The button then shows
+   `Gateway: https://192.168.1.1`.
+3. Select **UniFi API key**, enter the key from [step 3](#3-create-a-unifi-api-key)
+   and select **Save**. The button then shows `UniFi API key: saved`.
+   Typing 30+ characters with a remote is slow: on Google TV and Android TV you
+   can paste it from your phone with the Google TV app's keyboard.
+4. Select **Check VPN client**. The status line above the buttons shows the client
+   name, its server and the tunnel state, for example:
+
+   ```
+   NordVPN-DE → server 187.13.7.194
+   CONNECTED to 187.13.7.194
+   ```
+
+   If the gateway has several WireGuard VPN clients, a list opens: pick the one to
+   control. The app remembers it.
+
+To change country later:
+
+1. Select **Switch server country** and pick a country from NordVPN's list.
+2. Wait up to a minute. The app asks NordVPN for its least-loaded WireGuard server
+   in that country, writes that server's IP and public key into the VPN client and
+   waits for the tunnel. The status line ends with
+   `connected to <server> (<IP>)`.
+3. The dot turns green again once the new exit IP is classified.
 
 Only the server (peer IP and peer public key) changes. Your private key, tunnel
 address, DNS and routes stay as you set them. A client named like `NordVPN-CZ` is
 renamed to match the new country (`NordVPN-DE`); any other name is left alone.
 
 **Forget gateway** clears the address, key, saved certificate and chosen client.
+
+If the status line shows an error:
+
+| Message | Fix |
+|---------|-----|
+| `Failed: the gateway refused the API key (HTTP 401)` | Re-enter the key, or create a new one. |
+| `No WireGuard VPN client on this gateway` | Create it: [step 1](#1-create-the-nordvpn-wireguard-client-on-the-gateway). |
+| `Failed: …gateway certificate changed…` | You replaced the gateway or its certificate: **Forget gateway**, then set it up again. |
+| `…saved, but the tunnel hasn't reported connected after 60 s` | Select **Check VPN client** after a minute; if it stays down, pick another country. |
 
 ### What you need
 
