@@ -42,7 +42,42 @@ public class MonitorService extends Service {
  private boolean busy=false, destroyed=false;
  private long generation=0;
  private int notificationState=-1;
- private final Runnable poll=new Runnable(){public void run(){check();main.postDelayed(this,5000);}};
+ // The public IP has no change event: Android network changes and router switches check at once, this slow poll catches the rest. No good result yet: retry every 5 s.
+ static final long POLL_MS=60000;
+ private final Runnable poll=new Runnable(){public void run(){if(!routerVouches())check();main.postDelayed(this,checkedAt==0?5000:POLL_MS);}};
+ // With UniFi set up, the router's own tunnel status is asked every 15 s on the local network. While the dot is
+ // green and the tunnel status is the same as at the last public-IP check, that counts as a fresh check and
+ // ipify isn't asked at all. Any change, or an unreachable gateway, falls back to an immediate IP check.
+ static final long ROUTER_MS=15000;
+ private String routerSeen="", routerBaseline="", routerProblem="";
+ private long routerVouchedAt=0;
+ private boolean routerBusy=false;
+ private UnifiClient.VpnClient routerClient;
+ private final Runnable routerPoll=new Runnable(){public void run(){askRouter();main.postDelayed(this,ROUTER_MS);}};
+ private boolean routerVouches(){return routerVouchedAt>0&&SystemClock.elapsedRealtime()-routerVouchedAt<ROUTER_MS*3;}
+ private void askRouter(){
+  final UnifiClient c=new UnifiClient(this);
+  if(routerBusy||destroyed||!c.configured()){routerVouchedAt=0;return;}
+  routerBusy=true;final String wanted=Config.prefs(this).getString("unifiVpnId","");final UnifiClient.VpnClient known=routerClient;
+  try{worker.submit(()->{
+   UnifiClient.VpnClient v=known;String status="",problem="";
+   try{
+    if(v==null||(!wanted.isEmpty()&&!wanted.equals(v.id)))v=c.selected(c.clients());
+    if(v==null)problem="no WireGuard VPN client picked";else status=c.status(v);
+   }catch(Exception e){problem=errorText(e);v=null;}
+   final UnifiClient.VpnClient client=v;final String st=status,failure=problem;
+   main.post(()->{
+    routerBusy=false;if(destroyed)return;routerClient=client;
+    if(!failure.equals(routerProblem)){routerProblem=failure;Diagnostics.event(this,failure.isEmpty()?"Router status readable: "+st:"Router status unavailable: "+failure);}
+    routerSeen=st;
+    if(failure.isEmpty()&&RouterVpn.unchanged(routerBaseline,st)&&detection.state(lastIp,0)==StateLogic.VPN&&checkedAt>0){
+     routerVouchedAt=checkedAt=SystemClock.elapsedRealtime();return;
+    }
+    routerVouchedAt=0;
+    if(!failure.isEmpty()||!st.equals(routerBaseline)){if(!routerBaseline.isEmpty())Diagnostics.event(this,"Router tunnel changed: "+(st.isEmpty()?failure:st));check();}
+   });
+  });}catch(RejectedExecutionException e){routerBusy=false;routerVouchedAt=0;}
+ }
  private final Runnable redraw=new Runnable(){public void run(){
   if(dot!=null) dot.invalidate();
   int state=currentState(MonitorService.this);
@@ -88,7 +123,7 @@ public class MonitorService extends Service {
    @Override public void onLost(Network n){networkChanged();}
   };
   try{connectivity.registerDefaultNetworkCallback(callback);}catch(RuntimeException e){Diagnostics.event(this,"Network callback unavailable: "+e);callback=null;}
-  main.post(poll); main.post(redraw);
+  main.post(poll); main.post(redraw); main.postDelayed(routerPoll,3000);
  }
  private void networkChanged(){main.post(()->{if(destroyed)return;generation++;requestId++;busy=false;if(pending!=null)pending.cancel(true);checkedAt=0;lastIp="";detail="Network changed; checking";check();});}
  @Override public int onStartCommand(Intent i,int flags,int id){
@@ -154,7 +189,7 @@ public class MonitorService extends Service {
      if(destroyed || id!=requestId)return;
      main.removeCallbacks(deadline);busy=false;
      if(ticket!=generation){check();return;}
-     if(problem.isEmpty()){lastIp=ip;checkedAt=SystemClock.elapsedRealtime();useFallback=false;if(!lastIpProblem.isEmpty()){Diagnostics.event(this,"Public IP checks recovered: "+ip);lastIpProblem="";}classifyIp(ip);detail=detectionDetail;}
+     if(problem.isEmpty()){lastIp=ip;checkedAt=SystemClock.elapsedRealtime();routerBaseline=routerSeen;useFallback=false;if(!lastIpProblem.isEmpty()){Diagnostics.event(this,"Public IP checks recovered: "+ip);lastIpProblem="";}classifyIp(ip);detail=detectionDetail;}
      else{lastIp="";checkedAt=0;detail=problem;logIpProblem(problem);useFallback=!useFallback;}
     });
    });
@@ -224,7 +259,7 @@ public class MonitorService extends Service {
   HttpURLConnection c=(HttpURLConnection)new URL(endpoint).openConnection(java.net.Proxy.NO_PROXY);
   boolean classification=endpoint.startsWith("https://proxycheck.io/");
   c.setConnectTimeout(classification?4000:10000);c.setReadTimeout(classification?4000:10000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.15");
+  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.16");
   try{
    int response=c.getResponseCode();if(response!=200)throw new IOException("HTTP "+response+" from "+new URL(endpoint).getHost());
    ByteArrayOutputStream b=new ByteArrayOutputStream();

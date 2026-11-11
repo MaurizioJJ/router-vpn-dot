@@ -15,6 +15,10 @@ public final class RouterVpn {
   return host.matches("[A-Za-z0-9.-]+(:[0-9]{1,5})?")?s:"";
  }
 
+ // Router tunnel status now vs at the last public-IP check. Same and connected = same exit, so the
+ // last IP is still valid without asking ipify again.
+ public static boolean unchanged(String baseline,String now){return now!=null&&now.startsWith("CONNECTED")&&now.equals(baseline);}
+
  // WireGuard public keys are 32 bytes in base64: 43 characters plus "=".
  public static boolean wireguardKey(String key){return key!=null&&key.matches("[A-Za-z0-9+/]{43}=");}
 

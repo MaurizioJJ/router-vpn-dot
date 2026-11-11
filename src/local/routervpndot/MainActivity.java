@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(0xFF0B1020);
   body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(48),dp(28),dp(48),dp(32));scroll.addView(body);setContentView(scroll);
   TextView title=text("ROUTER VPN DOT",28,0xFFF8FAFC);title.setTypeface(null,Typeface.BOLD);
-  text("Version 0.15",14,0xFF94A3B8);
+  text("Version 0.16",14,0xFF94A3B8);
   status=text("Checking status",21,0xFFCBD5E1);status.setPadding(0,dp(14),0,dp(14));
   toggle=button("Start monitoring",()->{
    if(MonitorService.running){Config.prefs(this).edit().putBoolean("enabled",false).apply();stopService(new Intent(this,MonitorService.class));}
@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
   quota=new QuotaRing();toggle.getOverlay().add(quota);
   button("Allow display over other apps",this::permission);
   text("GREEN = VPN detected   •   RED = VPN not detected   •   AMBER = unknown",16,0xFFCBD5E1);
-  text("Public IP checked every 5 seconds. Successful classification is saved across restarts and reused only after a fresh matching IP check. No fixed IP list.",16,0xFF94A3B8);
+  text("Public IP checked every 60 seconds and at once on any network change or router switch. UniFi routers only: with the router switch set up, the gateway's tunnel status is read every 15 seconds and replaces the public-IP check while green. Successful classification is saved across restarts and reused only after a fresh matching IP check. No fixed IP list.",16,0xFF94A3B8);
   text("Failed classification stays amber and retries automatically with increasing delays. Detection is a public database classification, not proof of your router tunnel.",14,0xFF94A3B8);
   text("Appearance",22,0xFFF8FAFC);
   final String[] corners={"Top right","Top left","Bottom right","Bottom left"};
@@ -65,7 +65,7 @@ public class MainActivity extends Activity {
   button("Show diagnostics",()->new AlertDialog.Builder(this).setTitle("Service and crash history").setMessage("Current status: "+MonitorService.label(MonitorService.currentState(this))+"\nIP: "+MonitorService.lastIp+"\n"+MonitorService.detail+"\n\n"+Diagnostics.report(this)).setPositiveButton("Close",null).show());
   routerSection();
   text("Privacy & limits",22,0xFFF8FAFC);
-  text("This app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. If you set up the router VPN switch, the UniFi API key is stored on this device and sent only to your gateway; the country list and server choice come from api.nordvpn.com. No account login, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. The last successful classification is saved across restarts. It is reused only when a fresh public-IP check matches; database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.",14,0xFF94A3B8);
+  text("This app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. If you set up the router VPN switch, the UniFi API key is stored on this device and sent only to your gateway (read every 15 seconds for the tunnel status while monitoring); the country list and server choice come from api.nordvpn.com. No account login, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. The last successful classification is saved across restarts. It is reused only when a fresh public-IP check matches; database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.",14,0xFF94A3B8);
   toggle.requestFocus();
  }
  private void brightness(String key,String name,int defaultValue){
@@ -123,7 +123,9 @@ public class MainActivity extends Activity {
    for(int n=0;n<20;n++){ // the gateway applies the change within a minute
     Thread.sleep(3000);
     String st=c.status(v);
-    if(st.equals("CONNECTED to "+ip))return country.name+": connected to "+server+".\nThe dot turns green once the new exit is classified.";
+    if(st.equals("CONNECTED to "+ip)){
+     if(MonitorService.running)startForegroundService(new Intent(this,MonitorService.class).setAction("CHECK").putExtra("source","router switch")); // new exit IP: check now, not at the next poll
+     return country.name+": connected to "+server+".\nThe dot turns green once the new exit is classified.";}
    }
    return country.name+": "+server+" saved, but the tunnel hasn't reported connected after 60 s. Press Check VPN client.";
   })).show();

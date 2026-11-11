@@ -63,9 +63,21 @@ a full outline when the allowance is used up.
 
 ## How it checks
 
-- Every 5 seconds the app gets the public IPv4 from `api.ipify.org`, falling back to
+- The app gets the public IPv4 from `api.ipify.org`, falling back to
   `checkip.amazonaws.com`. Each check has a 10-second deadline.
-- A result older than 9 seconds counts as stale, so the dot turns amber.
+- It checks at once on a network change and right after a router switch made from
+  the app; otherwise every 60 seconds (every 5 seconds while the last check
+  failed). The public IP has no change event, so a VPN drop on the router shows up
+  within about a minute.
+- **UniFi routers only:** once the router VPN switch is set up (gateway + API
+  key), the app also asks the gateway for its WireGuard tunnel status every 15
+  seconds, on your local network. While the dot is green and the tunnel still
+  reports the same server as at the last IP check, that counts as a fresh check
+  and the public-IP services aren't contacted at all. A new server, a tunnel that
+  isn't connected, or an unreachable gateway triggers an immediate public-IP
+  check. Other routers have no such status, so they use the 60-second check.
+- A result older than 150 seconds (two missed checks) counts as stale, so the dot
+  turns amber.
 - Each **new** IP is sent once to `https://proxycheck.io/v3/{IP}`. While the IP stays
   the same, the saved result is reused, so normal use costs very few lookups.
 - The last result survives restarts, but it is only trusted again after a fresh
@@ -273,7 +285,8 @@ an APK built with your key**.
   These services see your public IP address.
 - Settings and the last result are stored only on the device.
 - Only if you set up the router VPN switch: the UniFi API key is stored on the
-  device and sent only to your gateway, and the country list and server choice
+  device and sent only to your gateway (also read every 15 seconds for the
+  tunnel status while monitoring), and the country list and server choice
   come from `api.nordvpn.com`.
 - No accounts, analytics, ads, storage access or accessibility service.
 

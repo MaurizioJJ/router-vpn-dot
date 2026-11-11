@@ -1,5 +1,6 @@
 package local.routervpndot;
 public final class DetectionState {
+ static final long STALE_MS=150000; // 60 s poll + 10 s deadline, one missed poll tolerated
  private String observed="";
  private int classification=StateLogic.UNKNOWN;
  private boolean pending=false;
@@ -29,7 +30,7 @@ public final class DetectionState {
  public long retryAt(){return retryAt;}
  public int failures(){return failures;}
  public int state(String current,long age){
-  if(age<0||age>9000||!StateLogic.ipv4(current)||!current.equals(observed))return StateLogic.UNKNOWN;
+  if(age<0||age>STALE_MS||!StateLogic.ipv4(current)||!current.equals(observed))return StateLogic.UNKNOWN;
   return classification;
  }
 }

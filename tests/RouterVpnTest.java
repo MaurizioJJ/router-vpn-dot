@@ -9,7 +9,11 @@ public class RouterVpnTest {
   check(!RouterVpn.wireguardKey("short="));
   check(RouterVpn.renamed("NordVPN-CZ","de").equals("NordVPN-DE"));
   check(RouterVpn.renamed("Home VPN","de").equals("Home VPN"));
-  System.out.println("8 router VPN tests passed");
+  check(RouterVpn.unchanged("CONNECTED to 1.2.3.4","CONNECTED to 1.2.3.4"));
+  check(!RouterVpn.unchanged("CONNECTED to 1.2.3.4","CONNECTED to 5.6.7.8"));
+  check(!RouterVpn.unchanged("DISCONNECTED","DISCONNECTED"));
+  check(!RouterVpn.unchanged("",""));
+  System.out.println("12 router VPN tests passed");
  }
  static void check(boolean b){if(!b)throw new AssertionError();}
 }

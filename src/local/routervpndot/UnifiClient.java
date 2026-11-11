@@ -107,7 +107,7 @@ final class UnifiClient {
  private static HttpURLConnection open(String url) throws IOException {
   HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection(Proxy.NO_PROXY);
   c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("User-Agent","RouterVPNDot/0.15");
+  c.setRequestProperty("User-Agent","RouterVPNDot/0.16");
   return c;
  }
 
