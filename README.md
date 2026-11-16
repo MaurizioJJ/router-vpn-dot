@@ -19,9 +19,15 @@ address.
 > does not check per-app routing, DNS or IPv6.
 
 If your router is a **UniFi gateway** running a **NordVPN WireGuard** VPN client,
-the app can also switch that client to another country from the TV, for streaming
-apps that refuse one country's VPN exits. See
-[Switch the router's VPN server](#switch-the-routers-vpn-server).
+the app can also, from the TV:
+
+- switch that client to another country, for streaming apps that refuse one
+  country's VPN exits ([Switch the router's VPN server](#switch-the-routers-vpn-server));
+- pause the VPN for this device only, and turn the kill switch on or off
+  ([Pause VPN and kill switch](#pause-vpn-and-kill-switch-unifi-only)).
+
+The app keeps itself up to date from this repository's releases, asking first
+([Updates](#updates)).
 
 ## Requirements
 
@@ -47,8 +53,8 @@ stopped, even across reboots, until you start it again.
 
 ### Updates
 
-From 0.18 the app checks this repository's latest release when it opens and after
-the device restarts. When there's a newer version it asks:
+The app checks this repository's latest release when it opens and after the device
+restarts. When there's a newer version it asks:
 
 | Button | What happens |
 |--------|--------------|
@@ -63,6 +69,9 @@ after-restart check opens the app only when an update is waiting, and needs
 **Allow display over other apps**. It's best effort: without **Resume monitoring
 after reboot**, Android may stop it before the network is up. While the app stays
 open in the background, it checks at most once an hour.
+
+Versions older than 0.18 don't check for updates: install the latest APK over them
+once by hand (settings are kept).
 
 Only the official release APK can update itself: an APK you build yourself has a
 different signer, so Android refuses the release APK over it (see [Build](#build)).
