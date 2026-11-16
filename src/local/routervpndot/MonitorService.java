@@ -53,6 +53,23 @@ public class MonitorService extends Service {
  private long routerVouchedAt=0;
  private boolean routerBusy=false;
  private UnifiClient.VpnClient routerClient;
+ private final java.util.Set<String> routeLookups=new java.util.HashSet<>();
+ private String warningIp="",routeWarning="";
+ static String tunnelLine(){MonitorService s=instance;return s==null||s.routerClient==null?"":"Tunnel "+s.routerClient.name+" · "+s.routerSeen;}
+ private boolean blocked(){return !routerSeen.startsWith("CONNECTED")&&routerProblem.isEmpty()&&routerClient!=null&&Config.prefs(this).getBoolean("killSwitch",false);}
+ private void routingWarning(){
+  final String ip=lastIp;
+  if(destroyed||ip.isEmpty()||detection.state(ip,0)!=StateLogic.NORMAL||!routerSeen.startsWith("CONNECTED")||routerClient==null||routeLookups.contains(ip))return;
+  final UnifiClient.VpnClient vpn=routerClient;
+  routeLookups.add(ip);
+  try{worker.submit(()->{
+   String warning="";
+   try{UnifiClient.Routes r=new UnifiClient(this).routes(vpn);warning=RouterVpn.warning(r.all,r.mac,vpn.id,r.networks);}
+   catch(Exception e){Diagnostics.event(this,"Routing lookup failed: "+errorText(e));}
+   final String message=warning;
+   main.post(()->{if(destroyed||!lastIp.equals(ip)||routerClient==null||!routerClient.id.equals(vpn.id))return;warningIp=ip;routeWarning=message;});
+  });}catch(RejectedExecutionException e){Diagnostics.event(this,"Routing lookup worker unavailable");}
+ }
  private final Runnable routerPoll=new Runnable(){public void run(){askRouter();main.postDelayed(this,ROUTER_MS);}};
  private boolean routerVouches(){return routerVouchedAt>0&&SystemClock.elapsedRealtime()-routerVouchedAt<ROUTER_MS*3;}
  private void askRouter(){
@@ -70,6 +87,7 @@ public class MonitorService extends Service {
     routerBusy=false;if(destroyed)return;routerClient=client;
     if(!failure.equals(routerProblem)){routerProblem=failure;Diagnostics.event(this,failure.isEmpty()?"Router status readable: "+st:"Router status unavailable: "+failure);}
     routerSeen=st;
+    routingWarning();
     if(failure.isEmpty()&&RouterVpn.unchanged(routerBaseline,st)&&detection.state(lastIp,0)==StateLogic.VPN&&checkedAt>0){
      routerVouchedAt=checkedAt=SystemClock.elapsedRealtime();return;
     }
@@ -86,11 +104,15 @@ public class MonitorService extends Service {
   main.postDelayed(this,250);
  }};
  static int currentState(Context c){
+  if(instance!=null&&instance.blocked())detail="Tunnel down: kill switch is blocking internet";
   if(!running || checkedAt==0){if(instance!=null)instance.duration.update(StateLogic.UNKNOWN,SystemClock.elapsedRealtime());return StateLogic.UNKNOWN;}
   MonitorService service=instance;
   if(service==null)return StateLogic.UNKNOWN;
   long now=SystemClock.elapsedRealtime();
   int state=service.detection.state(lastIp,now-checkedAt);
+  if(service.blocked()){state=StateLogic.UNKNOWN;detail="Tunnel down: kill switch is blocking internet";}
+  else if(state==StateLogic.NORMAL&&lastIp.equals(service.warningIp)&&!service.routeWarning.isEmpty()&&service.routerSeen.startsWith("CONNECTED")){state=StateLogic.UNKNOWN;detail=service.routeWarning;}
+  else if(checkedAt>0)detail=service.detectionDetail;
   service.duration.update(state,now);return state;
  }
  static String label(int state){return state==StateLogic.VPN ? "VPN detected" : state==StateLogic.NORMAL ? "VPN not detected" : "Unknown / checking";}
@@ -189,7 +211,7 @@ public class MonitorService extends Service {
      if(destroyed || id!=requestId)return;
      main.removeCallbacks(deadline);busy=false;
      if(ticket!=generation){check();return;}
-     if(problem.isEmpty()){lastIp=ip;checkedAt=SystemClock.elapsedRealtime();routerBaseline=routerSeen;useFallback=false;if(!lastIpProblem.isEmpty()){Diagnostics.event(this,"Public IP checks recovered: "+ip);lastIpProblem="";}classifyIp(ip);detail=detectionDetail;}
+     if(problem.isEmpty()){lastIp=ip;checkedAt=SystemClock.elapsedRealtime();routerBaseline=routerSeen;useFallback=false;if(!lastIpProblem.isEmpty()){Diagnostics.event(this,"Public IP checks recovered: "+ip);lastIpProblem="";}classifyIp(ip);detail=detectionDetail;routingWarning();}
      else{lastIp="";checkedAt=0;detail=problem;logIpProblem(problem);useFallback=!useFallback;}
     });
    });
@@ -244,6 +266,7 @@ public class MonitorService extends Service {
     if(value==StateLogic.UNKNOWN){detectionFailed(ip,failure);return;}
     detection.complete(ip,value);saveRetry();resolvedIp=ip;resolvedName=displayName;detail=detectionDetail=label(value);
     Config.prefs(this).edit().putString("classifiedIp",ip).putInt("classifiedState",value).putString("classifiedName",displayName).apply();
+    routingWarning();
     Diagnostics.event(this,"VPN lookup succeeded: "+ip+" "+label(value));
    });
   });}catch(RejectedExecutionException e){main.removeCallbacks(timeout);detectionFailed(ip,"VPN lookup worker unavailable");}
@@ -259,7 +282,7 @@ public class MonitorService extends Service {
   HttpURLConnection c=(HttpURLConnection)new URL(endpoint).openConnection(java.net.Proxy.NO_PROXY);
   boolean classification=endpoint.startsWith("https://proxycheck.io/");
   c.setConnectTimeout(classification?4000:10000);c.setReadTimeout(classification?4000:10000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.16");
+  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.17");
   try{
    int response=c.getResponseCode();if(response!=200)throw new IOException("HTTP "+response+" from "+new URL(endpoint).getHost());
    ByteArrayOutputStream b=new ByteArrayOutputStream();

@@ -13,7 +13,7 @@ address.
 |-----|---------|
 | Green | The current public IP is classified as a VPN address. |
 | Red | The current public IP is classified as **not** a VPN address. |
-| Amber | Unknown: the check failed, is still running, or the result is stale. |
+| Amber | Unknown: the check failed, is still running or is stale; the kill switch is blocking traffic; or a routing warning (read the text). |
 
 > Green is a public-database classification, not proof that your tunnel is up. It
 > does not check per-app routing, DNS or IPv6.
@@ -55,11 +55,39 @@ stopped, even across reboots, until you start it again.
 | Pulse | Slow pulse on green, faster on red. |
 | Warning banner | Shows **VPN NOT DETECTED** or **VPN STATUS UNKNOWN** across the top of the screen when the dot isn't green. |
 | Resume monitoring after reboot | Starts monitoring automatically after a reboot or app update. |
-| Show diagnostics | Lists lookup errors, service events and Android's process-exit records. |
+| Diagnostics | Lists lookup errors, service events and Android's process-exit records. |
 
 The yellow outline around the **Start/Stop monitoring** button shows how much of
 today's proxycheck.io allowance has been used: no outline at the start of the day,
 a full outline when the allowance is used up.
+
+The status card at the top changes background with the state: light green = VPN
+on, light yellow = VPN paused, light red = monitoring stopped, dark = checking, VPN
+not detected or a warning to read. Every card has an **i** button on the right that
+explains its buttons.
+
+## Pause VPN and kill switch (UniFi only)
+
+With the router VPN switch set up (see
+[Switch the router's VPN server](#switch-the-routers-vpn-server)), the app can also
+control the UniFi **traffic route** that sends this device into the VPN:
+
+| Control | What it does |
+|---------|--------------|
+| Pause VPN / Resume VPN | Pause turns off only this device's enabled VPN routes and stops monitoring; the VPN client and other devices stay on the VPN. Resume turns exactly those routes back on, starts monitoring and checks the IP at once. A pause survives reboots. |
+| Kill switch | On: no internet for this device while the tunnel is down (the dot goes amber with **Tunnel down: kill switch is blocking internet**). Off: traffic falls back to the normal internet and the dot goes red. |
+| Re-detect this TV's routes | Finds the routes again, after you change them in UniFi. |
+
+The app finds this device by its LAN IP in the gateway's client list, then looks for
+traffic routes that target its MAC and use the selected VPN client. If it can't, it
+lets you pick the routes from a list. A route can target several devices: pausing it
+affects all of them, so give this device its own route if others must stay on.
+
+**Routing warning:** when the tunnel reports connected but the public IP is not a
+VPN, the app checks the routes once per new IP. If another enabled route sends this
+device elsewhere (for example straight to a WAN), the dot goes amber and names that
+route. If no enabled VPN route covers the device, it says **Tunnel up, but this TV
+isn't routed through it**.
 
 ## How it checks
 
@@ -88,21 +116,20 @@ a full outline when the allowance is used up.
 ## Switch the router's VPN server
 
 Some streaming apps refuse a VPN exit in one country and accept another. The
-**Router VPN server** section of the settings screen moves the router's NordVPN
+**Router** section of the settings screen moves the router's NordVPN
 tunnel to another country without opening the UniFi app.
 
 Set up the router first ([steps 1 to 3](#what-you-need) below), then fill in the
 settings once:
 
-1. Open **Router VPN Dot** and scroll down to **Router VPN server (UniFi + NordVPN)**.
+1. Open **Router VPN Dot** and scroll down to **Router**.
 2. Select **Gateway**, type the gateway's LAN address (for example `192.168.1.1`,
-   no `https://` needed) and select **Save**. The button then shows
-   `Gateway: https://192.168.1.1`.
+   no `https://` needed) and select **Save**. The router status confirms the saved gateway.
 3. Select **UniFi API key**, enter the key from [step 3](#3-create-a-unifi-api-key)
-   and select **Save**. The button then shows `UniFi API key: saved`.
+   and select **Save**. The router status confirms that the key is saved.
    Typing 30+ characters with a remote is slow: on Google TV and Android TV you
    can paste it from your phone with the Google TV app's keyboard.
-4. Select **Check VPN client**. The status line above the buttons shows the client
+4. Select **Refresh VPN status**. The status line above the buttons shows the client
    name, its server and the tunnel state, for example:
 
    ```
@@ -115,7 +142,7 @@ settings once:
 
 To change country later:
 
-1. Select **Switch server country** and pick a country from NordVPN's list.
+1. Select **Switch country** and pick a country from NordVPN's list.
 2. Wait up to a minute. The app asks NordVPN for its least-loaded WireGuard server
    in that country, writes that server's IP and public key into the VPN client and
    waits for the tunnel. The status line ends with
@@ -123,7 +150,8 @@ To change country later:
 3. The dot turns green again once the new exit IP is classified.
 
 Only the server (peer IP and peer public key) changes. Your private key, tunnel
-address, DNS and routes stay as you set them. A client named like `NordVPN-CZ` is
+address and DNS stay as you set them. Country switching leaves routes unchanged.
+Pause and Kill switch change only their respective traffic-route fields. A client named like `NordVPN-CZ` is
 renamed to match the new country (`NordVPN-DE`); any other name is left alone.
 
 **Forget gateway** clears the address, key, saved certificate and chosen client.
@@ -135,7 +163,7 @@ If the status line shows an error:
 | `Failed: the gateway refused the API key (HTTP 401)` | Re-enter the key, or create a new one. |
 | `No WireGuard VPN client on this gateway` | Create it: [step 1](#1-create-the-nordvpn-wireguard-client-on-the-gateway). |
 | `Failed: …gateway certificate changed…` | You replaced the gateway or its certificate: **Forget gateway**, then set it up again. |
-| `…saved, but the tunnel hasn't reported connected after 60 s` | Select **Check VPN client** after a minute; if it stays down, pick another country. |
+| `…saved, but the tunnel hasn't reported connected after 60 s` | Select **Refresh VPN status** after a minute; if it stays down, pick another country. |
 
 ### What you need
 
@@ -199,7 +227,8 @@ UniFi Network → *Settings → Routing → Policy-Based Routes* (older versions
   device → Settings → Fixed IP address*) so the rule keeps matching.
 - Destination: Internet (all traffic).
 - Kill switch: your choice. With it off, traffic falls back to the normal
-  internet when the tunnel drops, and the dot turns red.
+  internet when the tunnel drops, and the dot turns red after classification. With
+  it on, internet is blocked and the dot turns amber with the kill-switch message.
 
 ### 3. Create a UniFi API key
 
@@ -312,7 +341,8 @@ an APK built with your key**.
 | `Diagnostics.java`, `LogTimeline.java` | Event log and exit records |
 | `VpnDuration.java` | "VPN detected since" duration |
 | `UnifiClient.java` | UniFi Network API and NordVPN server API calls for the router VPN switch |
-| `RouterVpn.java` | Pure helpers for the switch (address, key and name checks) |
+| `RouterVpn.java` | Pure helpers: route matching, routing warnings, address, key and name checks |
+| `Ui.java` | Shared colours, rounded cards and TV focus styling |
 | `tests/` | Plain-Java unit tests run by `build.sh` |
 
 ## License

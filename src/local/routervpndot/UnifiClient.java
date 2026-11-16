@@ -11,8 +11,8 @@ import javax.net.ssl.*;
 import org.json.*;
 
 // Talks to a UniFi gateway's Network API (with an API key) and to NordVPN's public server API.
-// Only the WireGuard peer (server IP + public key) of an existing VPN client is changed;
-// the private key, tunnel address and traffic routes stay as the owner set them up.
+// Changes the WireGuard peer and traffic routes (enabled, kill_switch_enabled).
+// The private key and tunnel address stay as the owner set them up.
 final class UnifiClient {
  static final class VpnClient {
   final String id,name,peerIp;
@@ -23,11 +23,18 @@ final class UnifiClient {
   Country(int id,String name,String code){this.id=id;this.name=name;this.code=code;}
  }
 
+ static final class Routes {
+  final List<RouterVpn.Route> all=new ArrayList<>(),mine=new ArrayList<>();
+  final Map<String,JSONObject> bodies=new HashMap<>();
+  final Map<String,String> networks=new HashMap<>();
+  String mac="";
+ }
+ private final Context context;
  private final SharedPreferences prefs;
  private final String gateway,apiKey;
 
  UnifiClient(Context c){
-  prefs=Config.prefs(c);
+  context=c; prefs=Config.prefs(c);
   gateway=prefs.getString("unifiGateway","");
   apiKey=prefs.getString("unifiApiKey","");
  }
@@ -60,6 +67,45 @@ final class UnifiClient {
    if(v.id.equals(c.optString("network_id")))return c.optString("status")+(c.optString("remote_ip").isEmpty()?"":" to "+c.optString("remote_ip"));
   }
   return "";
+ }
+
+ // Resolve the active LAN IPv4 through Android's network, then the gateway's station table.
+ Routes routes(VpnClient vpn) throws Exception {
+  Routes out=new Routes();
+  android.net.ConnectivityManager cm=context.getSystemService(android.net.ConnectivityManager.class);
+  android.net.LinkProperties lp=cm.getLinkProperties(cm.getActiveNetwork());
+  Set<String> ips=new HashSet<>();
+  if(lp!=null)for(android.net.LinkAddress a:lp.getLinkAddresses())if(a.getAddress() instanceof java.net.Inet4Address)ips.add(a.getAddress().getHostAddress());
+  JSONArray stations=new JSONObject(unifi("GET","/proxy/network/api/s/default/stat/sta",null)).getJSONArray("data");
+  for(int i=0;i<stations.length();i++){JSONObject sta=stations.getJSONObject(i);if(ips.contains(sta.optString("ip"))){out.mac=sta.optString("mac").toLowerCase(Locale.US);break;}}
+  JSONArray data=new JSONArray(unifi("GET","/proxy/network/v2/api/site/default/trafficroutes",null));
+  for(int i=0;i<data.length();i++){
+   JSONObject r=data.getJSONObject(i);List<String> macs=new ArrayList<>(),types=new ArrayList<>();
+   JSONArray targets=r.optJSONArray("target_devices");
+   if(targets!=null)for(int j=0;j<targets.length();j++){JSONObject t=targets.getJSONObject(j);macs.add(t.optString("client_mac"));types.add(t.optString("type"));}
+   String routeId=r.getString("_id");
+   if(!routeId.matches("[A-Za-z0-9_-]+"))throw new IOException("Invalid traffic route id");
+   RouterVpn.Route route=new RouterVpn.Route(routeId,r.optString("description"),r.optString("network_id"),r.optBoolean("enabled"),r.optBoolean("kill_switch_enabled"),macs,types);
+   out.all.add(route);out.bodies.put(route.id,r);
+  }
+  Set<String> saved=prefs.getStringSet("unifiRouteIds",Collections.emptySet());
+  if(saved.isEmpty())out.mine.addAll(RouterVpn.myRoutes(out.all,out.mac,vpn.id));
+  else {
+   for(RouterVpn.Route r:out.all)if(saved.contains(r.id)&&r.networkId.equals(vpn.id))out.mine.add(r);
+   if(out.mine.size()!=saved.size())throw new IOException("Saved VPN routes changed. Use Re-detect this TV's routes.");
+  }
+  JSONArray networks=new JSONObject(unifi("GET","/proxy/network/api/s/default/rest/networkconf",null)).getJSONArray("data");
+  for(int i=0;i<networks.length();i++){JSONObject n=networks.getJSONObject(i);out.networks.put(n.optString("_id"),n.optString("name"));}
+  return out;
+ }
+ // Full GET objects are preserved. Compensate earlier writes on failure; preferences change only on success.
+ void changeRoutes(Routes snapshot,Set<String> ids,String field,boolean value) throws Exception {
+  if(!field.equals("enabled")&&!field.equals("kill_switch_enabled"))throw new IOException("Unsupported route field");
+  for(String id:ids)if(!snapshot.bodies.containsKey(id))throw new IOException("Saved route no longer exists: "+id);
+  RouterVpn.update(ids,(id,restore)->{
+   JSONObject original=snapshot.bodies.get(id);
+   unifi("PUT","/proxy/network/v2/api/site/default/trafficroutes/"+id,restore?original.toString():new JSONObject(original.toString()).put(field,value).toString());
+  });
  }
 
  static List<Country> countries() throws Exception {
@@ -107,7 +153,7 @@ final class UnifiClient {
  private static HttpURLConnection open(String url) throws IOException {
   HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection(Proxy.NO_PROXY);
   c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("User-Agent","RouterVPNDot/0.16");
+  c.setRequestProperty("User-Agent","RouterVPNDot/0.17");
   return c;
  }
 

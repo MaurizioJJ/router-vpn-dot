@@ -20,11 +20,18 @@ java -m jdk.compiler/com.sun.tools.javac.Main -d build/test src/local/routervpnd
 java -cp build/test RouterVpnTest
 "$BT/aapt2" compile --dir res -o build/resources.zip
 "$BT/aapt2" link -I "$AJ" --manifest AndroidManifest.xml --java build/gen -o build/base.apk build/resources.zip
+if [[ "${COMPILE_ONLY:-0}" == 1 ]]; then
+ printf 'package local.routervpndot;\nfinal class Secrets{static final String PROXYCHECK_KEY="";}\n' > build/gen/local/routervpndot/Secrets.java
+ java -m jdk.compiler/com.sun.tools.javac.Main --release 8 -Xlint:all -Werror -classpath "$AJ" -d build/classes src/local/routervpndot/*.java build/gen/local/routervpndot/*.java
+ "$BT/d8" --min-api 26 --lib "$AJ" --output build/dex build/classes/local/routervpndot/*.class
+ echo "Compile-only complete; no keys read or signing performed."
+ exit 0
+fi
 KEY="$({ tr -d '[:space:]' < proxycheck.key; } 2>/dev/null || true)"
 [[ "$KEY" =~ ^[A-Za-z0-9-]*$ ]] || { echo "proxycheck.key must contain only letters, digits and dashes" >&2; exit 1; }
 printf 'package local.routervpndot;\nfinal class Secrets{static final String PROXYCHECK_KEY="%s";}\n' "$KEY" > build/gen/local/routervpndot/Secrets.java
 echo "proxycheck.io key: $([[ -n "$KEY" ]] && echo included || echo none)"
-java -m jdk.compiler/com.sun.tools.javac.Main --release 8 -classpath "$AJ" -d build/classes src/local/routervpndot/*.java build/gen/local/routervpndot/*.java
+java -m jdk.compiler/com.sun.tools.javac.Main --release 8 -Xlint:all -Werror -classpath "$AJ" -d build/classes src/local/routervpndot/*.java build/gen/local/routervpndot/*.java
 "$BT/d8" --min-api 26 --lib "$AJ" --output build/dex build/classes/local/routervpndot/*.class
 python3 - <<'PY'
 import zipfile,shutil
@@ -36,6 +43,6 @@ PY
 if [[ ! -f local-test.jks ]]; then
  keytool -genkeypair -keystore local-test.jks -storepass android -keypass android -alias routerdot -keyalg RSA -keysize 2048 -validity 3650 -dname 'CN=Router VPN Dot Local Test'
 fi
-"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.16.apk build/aligned.apk
-"$BT/apksigner" verify --verbose RouterVPNDot-0.16.apk
-"$BT/zipalign" -c 4 RouterVPNDot-0.16.apk
+"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.17.apk build/aligned.apk
+"$BT/apksigner" verify --verbose RouterVPNDot-0.17.apk
+"$BT/zipalign" -c 4 RouterVPNDot-0.17.apk
