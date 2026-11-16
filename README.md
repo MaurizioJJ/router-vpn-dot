@@ -45,6 +45,28 @@ build it yourself (see [Build](#build)). Then:
 The dot appears in the top-right corner. **Stop monitoring** stops it and keeps it
 stopped, even across reboots, until you start it again.
 
+### Updates
+
+From 0.18 the app checks this repository's latest release when it opens and after
+the device restarts. When there's a newer version it asks:
+
+| Button | What happens |
+|--------|--------------|
+| **Update** | Downloads the APK from the release and opens Android's install screen. Settings are kept. |
+| **Not now** | Nothing. It asks again the next time the app opens or the device restarts. |
+| **Skip this version** | Stays quiet until a newer version than this one is released. |
+
+**Advanced → Check for updates** checks at once, even for a skipped version. The
+first time, Android asks you to allow Router VPN Dot to install apps (on Android TV:
+Settings → Device Preferences → Security & restrictions → Unknown sources). The
+after-restart check opens the app only when an update is waiting, and needs
+**Allow display over other apps**. It's best effort: without **Resume monitoring
+after reboot**, Android may stop it before the network is up. While the app stays
+open in the background, it checks at most once an hour.
+
+Only the official release APK can update itself: an APK you build yourself has a
+different signer, so Android refuses the release APK over it (see [Build](#build)).
+
 ## Settings
 
 | Setting | What it does |
@@ -305,6 +327,10 @@ proxycheck.io.
    ```
 3. Run `build.sh` again. It prints `proxycheck.io key: included`.
 
+`update.repo` holds the GitHub repository the in-app updater checks
+(`owner/name`). In a fork, change it to your fork, or delete it to build without
+update checks; `build.sh` prints which one it used.
+
 `proxycheck.key` is git-ignored. The key is compiled into the APK, so **don't share
 an APK built with your key**.
 
@@ -317,6 +343,8 @@ an APK built with your key**.
   device and sent only to your gateway (also read every 15 seconds for the
   tunnel status while monitoring), and the country list and server choice
   come from `api.nordvpn.com`.
+- The update check calls `api.github.com` and downloads the APK from GitHub when
+  you choose **Update**. GitHub sees your IP address.
 - No accounts, analytics, ads, storage access or accessibility service.
 
 ## Known limits
@@ -343,6 +371,7 @@ an APK built with your key**.
 | `UnifiClient.java` | UniFi Network API and NordVPN server API calls for the router VPN switch |
 | `RouterVpn.java` | Pure helpers: route matching, routing warnings, address, key and name checks |
 | `Ui.java` | Shared colours, rounded cards and TV focus styling |
+| `Updater.java`, `UpdateCheck.java` | GitHub release check, version comparison, APK install session |
 | `tests/` | Plain-Java unit tests run by `build.sh` |
 
 ## License

@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
   FrameLayout frame=new FrameLayout(this);scroll.addView(frame);
   root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(32),dp(28),dp(32),dp(32));
   FrameLayout.LayoutParams content=new FrameLayout.LayoutParams(Math.min(dp(1100),getResources().getDisplayMetrics().widthPixels),-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);frame.addView(root,content);body=root;setContentView(scroll);
-  text("ROUTER VPN DOT · Version 0.17",18,Ui.MUTED);
+  text("ROUTER VPN DOT · Version 0.18",18,Ui.MUTED);
   statusCard=card(null,null);
   LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);body.addView(statusRow);
   liveDot=new TextView(this);liveDot.setText("●");liveDot.setTextSize(48);liveDot.setPadding(0,0,dp(20),0);statusRow.addView(liveDot);
@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
   brightness("alertBrightness","Red / amber brightness",35);
   preferenceSwitch("pulse","Pulse the dot (slow green / faster red)",true);
   preferenceSwitch("banner","Show warning banner",true);
-  card("ADVANCED","• Resume monitoring after reboot: starts the dot by itself after a power cut or restart.\n• Allow display over other apps: the Android permission the dot needs.\n• Diagnostics: service and error history, useful when something looks wrong.\n• Forget gateway: removes the router address and API key from this TV (Resume VPN first if paused).\n• About & privacy: what the app contacts and what green really means.");
+  card("ADVANCED","• Resume monitoring after reboot: starts the dot by itself after a power cut or restart.\n• Allow display over other apps: the Android permission the dot needs.\n• Diagnostics: service and error history, useful when something looks wrong.\n• Forget gateway: removes the router address and API key from this TV (Resume VPN first if paused).\n• About & privacy: what the app contacts and what green really means."+(Updater.enabled()?"\n• Check for updates: looks for a newer release on GitHub now. The app also asks by itself when it opens and after a restart: Not now asks again next time, Skip this version waits for the next one.":""));
   preferenceSwitch("boot","Resume monitoring after reboot",false);
   button("Allow display over other apps",this::permission);
   button("Diagnostics",()->new AlertDialog.Builder(this).setTitle("Service and crash history").setMessage("Current status: "+MonitorService.label(MonitorService.currentState(this))+"\nIP: "+MonitorService.lastIp+"\n"+MonitorService.detail+"\n\n"+Diagnostics.report(this)).setPositiveButton("Close",null).show());
@@ -92,6 +92,7 @@ public class MainActivity extends Activity {
    if(Config.prefs(this).getBoolean("vpnPaused",false)){routerStatus.setText("Resume VPN before forgetting the gateway so the paused routes can be restored.");return;}
    Config.prefs(this).edit().remove("unifiGateway").remove("unifiApiKey").remove("unifiPin").remove("unifiVpnId").remove("unifiRouteIds").remove("killSwitch").apply();routerStatus.setText("Gateway forgotten.");gatewayButton.setText("Gateway: not set");apiKeyButton.setText("UniFi API key: not set");setKill(false);
   });
+  if(Updater.enabled())button("Check for updates",()->checkUpdate(true));
   button("About & privacy ▸",this::about);
   pause.requestFocus();
   if(new UnifiClient(this).configured())checkClient();
@@ -120,8 +121,8 @@ public class MainActivity extends Activity {
   try{startForegroundService(new Intent(this,MonitorService.class).setAction("CHECK").putExtra("source",source));return true;}
   catch(RuntimeException e){Config.prefs(this).edit().putBoolean("enabled",false).apply();routerStatus.setText("Monitoring could not start: "+e.getClass().getSimpleName());Diagnostics.event(this,"monitor_start result=failure error_type="+e.getClass().getSimpleName());return false;}
  }
- private void about(){new AlertDialog.Builder(this).setTitle("Router VPN Dot 0.17 · About & privacy").setMessage(
-  "GREEN = VPN detected · RED = VPN not detected · AMBER = unknown or routing warning.\n\nPublic IP checked every 60 seconds and at once on any network change or router switch. UniFi routers only: the gateway's tunnel status is read every 15 seconds and replaces the public-IP check while green. Successful classification is saved across restarts and reused only after a fresh matching IP check. No fixed IP list. Failed classification stays amber and retries automatically with increasing delays. Detection is a public database classification, not proof of your router tunnel.\n\nPause VPN disables only this TV's enabled VPN routes. Resume restores exactly those routes and starts monitoring. Stop monitoring leaves router routes alone. Kill switch blocks internet when the tunnel drops; off allows fallback. A connected tunnel with a normal public IP is checked for missing or overriding routes once per new IP.\n\nThis app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. If you set up the router VPN switch, the UniFi API key is stored on this device and sent only to your gateway; the country list and server choice come from api.nordvpn.com. No account login, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. Database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.").setPositiveButton("Close",null).show();}
+ private void about(){new AlertDialog.Builder(this).setTitle("Router VPN Dot 0.18 · About & privacy").setMessage(
+  "GREEN = VPN detected · RED = VPN not detected · AMBER = unknown or routing warning.\n\nPublic IP checked every 60 seconds and at once on any network change or router switch. UniFi routers only: the gateway's tunnel status is read every 15 seconds and replaces the public-IP check while green. Successful classification is saved across restarts and reused only after a fresh matching IP check. No fixed IP list. Failed classification stays amber and retries automatically with increasing delays. Detection is a public database classification, not proof of your router tunnel.\n\nPause VPN disables only this TV's enabled VPN routes. Resume restores exactly those routes and starts monitoring. Stop monitoring leaves router routes alone. Kill switch blocks internet when the tunnel drops; off allows fallback. A connected tunnel with a normal public IP is checked for missing or overriding routes once per new IP.\n\nThis app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. If you set up the router VPN switch, the UniFi API key is stored on this device and sent only to your gateway; the country list and server choice come from api.nordvpn.com. "+(Updater.enabled()?"Update checks call api.github.com (or github.com) when the app opens and after a restart, and the APK is downloaded from GitHub only when you choose Update. ":"")+"No account login, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. Database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.").setPositiveButton("Close",null).show();}
  private void brightness(String key,String name,int defaultValue){
   Button b=button(name+": "+Config.prefs(this).getInt(key,defaultValue)+"%",()->{});
   b.setOnClickListener(v->{int value=Config.prefs(this).getInt(key,defaultValue);int[] levels={5,10,15,20,30,35,40,60,80,100};int i=0;while(i<levels.length && levels[i]<=value)i++;value=levels[i%levels.length];Config.prefs(this).edit().putInt(key,value).apply();b.setText(name+": "+value+"%");});
@@ -249,6 +250,44 @@ public class MainActivity extends Activity {
    String shown=out;runOnUiThread(()->{routerWorking=false;pause.setEnabled(true);kill.setEnabled(true);routerStatus.setText(shown);complete.run();if(!routerWorking&&initialFocus){pause.requestFocus();initialFocus=false;}});
   }).start();
  }
+ // Asks about a newer GitHub release. Automatic checks stay silent on errors and skipped versions.
+ private static long lastAutoCheck;
+ private AlertDialog updateDialog;
+ private void checkUpdate(boolean manual){
+  if(!Updater.enabled()||updateDialog!=null&&updateDialog.isShowing())return;
+  // ponytail: automatic checks at most hourly per app process, so returning from Settings doesn't re-ask.
+  if(!manual){if(lastAutoCheck!=0&&SystemClock.elapsedRealtime()-lastAutoCheck<3600000)return;lastAutoCheck=SystemClock.elapsedRealtime();}
+  new Thread(()->{
+   Updater.Release r=null;String error=null;
+   try{r=Updater.latest();}catch(Exception e){error=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();Diagnostics.event(this,"update check failed: "+error);}
+   Updater.Release found=r;String failed=error;
+   runOnUiThread(()->{
+    if(isFinishing()||isDestroyed()||updateDialog!=null&&updateDialog.isShowing())return;
+    String have=Updater.current(this);
+    if(found==null){if(manual)toast("Update check failed: "+failed);return;}
+    boolean ask=manual?found.apk!=null&&UpdateCheck.newer(found.tag,have):Updater.shouldAsk(this,found);
+    if(!ask){if(manual)toast("You have the latest version ("+have+").");return;}
+    String notes=found.notes.length()>1500?found.notes.substring(0,1500)+"…":found.notes;
+    updateDialog=new AlertDialog.Builder(this).setTitle("Update available: "+found.tag).setMessage("You have "+have+".\n\n"+notes)
+     .setPositiveButton("Update",(d,w)->install(found))
+     .setNegativeButton("Not now",null)
+     .setNeutralButton("Skip this version",(d,w)->Config.prefs(this).edit().putString("updateSkipped",found.tag).apply()).show();
+   });
+  }).start();
+ }
+ private void install(Updater.Release r){
+  if(!getPackageManager().canRequestPackageInstalls()){
+   try{startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())));}catch(ActivityNotFoundException e){Diagnostics.event(this,"unknown sources screen missing");}
+   toast("Allow Router VPN Dot to install apps (Settings → Security → Unknown sources), then choose Advanced → Check for updates.");
+   return;
+  }
+  toast("Downloading "+r.tag+"…");
+  new Thread(()->{
+   try{Updater.install(this,r);}
+   catch(Exception e){String m=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();runOnUiThread(()->toast("Update download failed: "+m));}
+  }).start();
+ }
+ private void toast(String m){Toast.makeText(this,m,Toast.LENGTH_LONG).show();}
  private interface Answer{void take(String s);}
  private void ask(String title,String hint,boolean secret,Answer answer){
   EditText in=new EditText(this);in.setHint(hint);in.setSingleLine(true);
@@ -282,6 +321,6 @@ public class MainActivity extends Activity {
   @SuppressWarnings("deprecation")
   @Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
  }
- @Override protected void onResume(){super.onResume();MonitorService.settingsVisible=true;AutoStart.resume(this,"App opened");handler.post(refresh);}
+ @Override protected void onResume(){super.onResume();MonitorService.settingsVisible=true;AutoStart.resume(this,"App opened");handler.post(refresh);checkUpdate(false);}
  @Override protected void onPause(){MonitorService.settingsVisible=false;handler.removeCallbacks(refresh);super.onPause();}
 }

@@ -282,7 +282,7 @@ public class MonitorService extends Service {
   HttpURLConnection c=(HttpURLConnection)new URL(endpoint).openConnection(java.net.Proxy.NO_PROXY);
   boolean classification=endpoint.startsWith("https://proxycheck.io/");
   c.setConnectTimeout(classification?4000:10000);c.setReadTimeout(classification?4000:10000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.17");
+  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.18");
   try{
    int response=c.getResponseCode();if(response!=200)throw new IOException("HTTP "+response+" from "+new URL(endpoint).getHost());
    ByteArrayOutputStream b=new ByteArrayOutputStream();
