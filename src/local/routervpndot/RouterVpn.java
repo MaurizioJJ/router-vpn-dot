@@ -68,6 +68,15 @@ public final class RouterVpn {
  // WireGuard public keys are 32 bytes in base64: 43 characters plus "=".
  public static boolean wireguardKey(String key){return key!=null&&key.matches("[A-Za-z0-9+/]{43}=");}
 
+ // "NordVPN-AL" -> "AL": the country the client is in now, so the list can offer it first. "" otherwise.
+ public static String countryCode(String name){return name!=null&&name.matches("NordVPN-[A-Z]{2}")?name.substring(8):"";}
+
+ // One row of the server list: "al168 · 187.15.131.169 · load 15% · current".
+ public static String serverLabel(String hostname,String ip,int load,String currentIp){
+  String host=hostname==null?"":hostname.replace(".nordvpn.com","");
+  return (host.isEmpty()?"":host+" · ")+ip+" · load "+load+"%"+(ip.equals(currentIp)?" · current":"");
+ }
+
  // Keeps "NordVPN-CZ"-style names in step with the country. Any other name is the owner's choice and stays.
  public static String renamed(String name,String countryCode){
   return name!=null&&name.matches("NordVPN-[A-Z]{2}")&&countryCode!=null&&countryCode.matches("[A-Za-z]{2}")?"NordVPN-"+countryCode.toUpperCase(java.util.Locale.US):name;

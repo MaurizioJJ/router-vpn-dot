@@ -116,22 +116,34 @@ final class UnifiClient {
   return out;
  }
 
- // Points the VPN client at NordVPN's least-loaded WireGuard server in the country. Returns the server name.
- String switchTo(VpnClient v,Country country) throws Exception {
-  JSONArray rec=new JSONArray(get("https://api.nordvpn.com/v1/servers/recommendations?filters%5Bcountry_id%5D="+country.id+"&filters%5Bservers_technologies%5D%5Bidentifier%5D=wireguard_udp&limit=1",1<<20));
-  if(rec.length()==0)throw new IOException("NordVPN has no WireGuard server in "+country.name);
-  JSONObject server=rec.getJSONObject(0);
-  String ip=server.getString("station"),key="";
-  JSONArray tech=server.getJSONArray("technologies");
-  for(int i=0;i<tech.length();i++){
-   JSONObject t=tech.getJSONObject(i);if(!"wireguard_udp".equals(t.optString("identifier")))continue;
-   JSONArray meta=t.optJSONArray("metadata");
-   if(meta!=null)for(int j=0;j<meta.length();j++)if("public_key".equals(meta.getJSONObject(j).optString("name")))key=meta.getJSONObject(j).optString("value");
+ static final class Server {
+  final String hostname,ip,key;final int load;
+  Server(String hostname,String ip,String key,int load){this.hostname=hostname;this.ip=ip;this.key=key;this.load=load;}
+ }
+
+ // NordVPN's recommended WireGuard servers in the country, least loaded first. Servers without a key are skipped.
+ static List<Server> servers(Country country) throws Exception {
+  JSONArray rec=new JSONArray(get("https://api.nordvpn.com/v1/servers/recommendations?filters%5Bcountry_id%5D="+country.id+"&filters%5Bservers_technologies%5D%5Bidentifier%5D=wireguard_udp&limit=15",2<<20));
+  List<Server> out=new ArrayList<>();
+  for(int s=0;s<rec.length();s++){
+   JSONObject server=rec.getJSONObject(s);String key="";
+   JSONArray tech=server.optJSONArray("technologies");
+   for(int i=0;tech!=null&&i<tech.length();i++){
+    JSONObject t=tech.getJSONObject(i);if(!"wireguard_udp".equals(t.optString("identifier")))continue;
+    JSONArray meta=t.optJSONArray("metadata");
+    if(meta!=null)for(int j=0;j<meta.length();j++)if("public_key".equals(meta.getJSONObject(j).optString("name")))key=meta.getJSONObject(j).optString("value");
+   }
+   if(RouterVpn.wireguardKey(key)&&!server.optString("station").isEmpty())out.add(new Server(server.optString("hostname"),server.getString("station"),key,server.optInt("load")));
   }
-  if(!RouterVpn.wireguardKey(key))throw new IOException("NordVPN sent no WireGuard key for "+server.optString("hostname"));
-  JSONObject body=new JSONObject().put("wireguard_client_peer_ip",ip).put("wireguard_client_peer_public_key",key).put("name",RouterVpn.renamed(v.name,country.code));
+  if(out.isEmpty())throw new IOException("NordVPN has no WireGuard server in "+country.name);
+  return out;
+ }
+
+ // Points the VPN client at the chosen server. Returns "hostname (ip)".
+ String switchTo(VpnClient v,Country country,Server server) throws Exception {
+  JSONObject body=new JSONObject().put("wireguard_client_peer_ip",server.ip).put("wireguard_client_peer_public_key",server.key).put("name",RouterVpn.renamed(v.name,country.code));
   unifi("PUT","/proxy/network/api/s/default/rest/networkconf/"+v.id,body.toString());
-  return server.optString("hostname",ip)+" ("+ip+")";
+  return (server.hostname.isEmpty()?server.ip:server.hostname)+" ("+server.ip+")";
  }
 
  private String unifi(String method,String path,String body) throws Exception {
@@ -153,7 +165,7 @@ final class UnifiClient {
  private static HttpURLConnection open(String url) throws IOException {
   HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection(Proxy.NO_PROXY);
   c.setConnectTimeout(10000);c.setReadTimeout(15000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("User-Agent","RouterVPNDot/0.18");
+  c.setRequestProperty("User-Agent","RouterVPNDot/0.19");
   return c;
  }
 

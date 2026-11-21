@@ -9,6 +9,10 @@ public class RouterVpnTest {
   check(!RouterVpn.wireguardKey("short="));
   check(RouterVpn.renamed("NordVPN-CZ","de").equals("NordVPN-DE"));
   check(RouterVpn.renamed("Home VPN","de").equals("Home VPN"));
+  check(RouterVpn.countryCode("NordVPN-AL").equals("AL"));
+  check(RouterVpn.countryCode("Home VPN").isEmpty());
+  check(RouterVpn.serverLabel("al168.nordvpn.com","187.15.131.169",15,"187.15.131.169").equals("al168 · 187.15.131.169 · load 15% · current"));
+  check(RouterVpn.serverLabel("","1.2.3.4",7,"5.6.7.8").equals("1.2.3.4 · load 7%"));
   check(RouterVpn.unchanged("CONNECTED to 1.2.3.4","CONNECTED to 1.2.3.4"));
   check(!RouterVpn.unchanged("CONNECTED to 1.2.3.4","CONNECTED to 5.6.7.8"));
   check(!RouterVpn.unchanged("DISCONNECTED","DISCONNECTED"));

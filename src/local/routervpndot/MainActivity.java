@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
   FrameLayout frame=new FrameLayout(this);scroll.addView(frame);
   root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(dp(32),dp(28),dp(32),dp(32));
   FrameLayout.LayoutParams content=new FrameLayout.LayoutParams(Math.min(dp(1100),getResources().getDisplayMetrics().widthPixels),-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);frame.addView(root,content);body=root;setContentView(scroll);
-  text("ROUTER VPN DOT · Version 0.18",18,Ui.MUTED);
+  text("ROUTER VPN DOT · Version 0.19",18,Ui.MUTED);
   statusCard=card(null,null);
   LinearLayout statusRow=new LinearLayout(this);statusRow.setGravity(Gravity.CENTER_VERTICAL);body.addView(statusRow);
   liveDot=new TextView(this);liveDot.setText("●");liveDot.setTextSize(48);liveDot.setPadding(0,0,dp(20),0);statusRow.addView(liveDot);
@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
    else startMonitoring("start");
   });
   quota=new QuotaRing();toggle.getOverlay().add(quota);
-  Button country=button("Switch country",this::switchCountry);
+  Button country=button("Switch server",this::switchCountry);
   for(Button action:new Button[]{pause,toggle,country}){LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(0,dp(72),1);ap.setMargins(dp(4),dp(12),dp(4),dp(12));action.setLayoutParams(ap);}
   body=root;routerSection();
   card("APPEARANCE","How the small dot looks on top of other apps.\n\n• Corner: where the dot sits.\n• Dot size: its diameter.\n• Green brightness / Red & amber brightness: how strong it shows in each state (keep green dim so it doesn't distract).\n• Pulse: green pulses slowly, red and amber faster.\n• Warning banner: a short text banner when the VPN is off or can't be verified.");
@@ -121,7 +121,7 @@ public class MainActivity extends Activity {
   try{startForegroundService(new Intent(this,MonitorService.class).setAction("CHECK").putExtra("source",source));return true;}
   catch(RuntimeException e){Config.prefs(this).edit().putBoolean("enabled",false).apply();routerStatus.setText("Monitoring could not start: "+e.getClass().getSimpleName());Diagnostics.event(this,"monitor_start result=failure error_type="+e.getClass().getSimpleName());return false;}
  }
- private void about(){new AlertDialog.Builder(this).setTitle("Router VPN Dot 0.18 · About & privacy").setMessage(
+ private void about(){new AlertDialog.Builder(this).setTitle("Router VPN Dot 0.19 · About & privacy").setMessage(
   "GREEN = VPN detected · RED = VPN not detected · AMBER = unknown or routing warning.\n\nPublic IP checked every 60 seconds and at once on any network change or router switch. UniFi routers only: the gateway's tunnel status is read every 15 seconds and replaces the public-IP check while green. Successful classification is saved across restarts and reused only after a fresh matching IP check. No fixed IP list. Failed classification stays amber and retries automatically with increasing delays. Detection is a public database classification, not proof of your router tunnel.\n\nPause VPN disables only this TV's enabled VPN routes. Resume restores exactly those routes and starts monitoring. Stop monitoring leaves router routes alone. Kill switch blocks internet when the tunnel drops; off allows fallback. A connected tunnel with a normal public IP is checked for missing or overriding routes once per new IP.\n\nThis app contacts api.ipify.org, with checkip.amazonaws.com as a fallback, and sends each new public IP to proxycheck.io for VPN classification. Those services see your exit IP. Settings stay on this device. If you set up the router VPN switch, the UniFi API key is stored on this device and sent only to your gateway; the country list and server choice come from api.nordvpn.com. "+(Updater.enabled()?"Update checks call api.github.com (or github.com) when the app opens and after a restart, and the APK is downloaded from GitHub only when you choose Update. ":"")+"No account login, router password, analytics, storage access or accessibility service is used.\n\nGreen means proxycheck.io classified the current IP as VPN. Database classifications can become outdated. It does not verify every app, DNS or IPv6. Checks may be delayed during sleep. Android can stop the service, and some screens can hide overlays. Confirm the dot is visible in the full-screen apps you use.").setPositiveButton("Close",null).show();}
  private void brightness(String key,String name,int defaultValue){
   Button b=button(name+": "+Config.prefs(this).getInt(key,defaultValue)+"%",()->{});
@@ -165,11 +165,24 @@ public class MainActivity extends Activity {
   String[] names=new String[all.size()];for(int i=0;i<names.length;i++)names[i]=all.get(i).name+" ("+all.get(i).peerIp+")";
   new AlertDialog.Builder(this).setTitle("WireGuard VPN client to control").setItems(names,(d,i)->{if(routerWorking){routerStatus.setText("Wait for the current router operation.");return;}if(Config.prefs(this).getBoolean("vpnPaused",false)){routerStatus.setText("Resume VPN before changing client.");return;}Config.prefs(this).edit().putString("unifiVpnId",all.get(i).id).remove("unifiRouteIds").apply();routeAction("read",false);routerStatus.setText("Using "+all.get(i).name+".");}).show();
  }
- private void pickCountry(UnifiClient.VpnClient v,List<UnifiClient.Country> countries){
-  String[] names=new String[countries.size()];for(int i=0;i<names.length;i++)names[i]=countries.get(i).name;
+ // The client's current country goes first, so a server change in the same country is one click.
+ private void pickCountry(UnifiClient.VpnClient v,List<UnifiClient.Country> all){
+  List<UnifiClient.Country> countries=new ArrayList<>(all);String now=RouterVpn.countryCode(v.name);
+  for(int i=0;i<countries.size();i++)if(countries.get(i).code.equalsIgnoreCase(now)){countries.add(0,countries.remove(i));break;}
+  String[] names=new String[countries.size()];for(int i=0;i<names.length;i++)names[i]=countries.get(i).name+(i==0&&countries.get(0).code.equalsIgnoreCase(now)?" (current, other server)":"");
   new AlertDialog.Builder(this).setTitle("Switch "+v.name+" to").setItems(names,(d,i)->background(c->{
    UnifiClient.Country country=countries.get(i);
-   String server=c.switchTo(v,country);
+   List<UnifiClient.Server> servers=UnifiClient.servers(country);
+   runOnUiThread(()->pickServer(v,country,servers));
+   return "Pick a "+country.name+" server.";
+  })).show();
+ }
+ private void pickServer(UnifiClient.VpnClient v,UnifiClient.Country country,List<UnifiClient.Server> servers){
+  String[] names=new String[servers.size()];
+  for(int i=0;i<names.length;i++){UnifiClient.Server s=servers.get(i);names[i]=RouterVpn.serverLabel(s.hostname,s.ip,s.load,v.peerIp);}
+  new AlertDialog.Builder(this).setTitle(country.name+" servers, least loaded first").setItems(names,(d,i)->background(c->{
+   if(servers.get(i).ip.equals(v.peerIp))return "Already on "+servers.get(i).ip+".";
+   String server=c.switchTo(v,country,servers.get(i));
    runOnUiThread(()->routerStatus.setText("Switching to "+server+"…"));
    String ip=server.substring(server.lastIndexOf('(')+1,server.length()-1);
    for(int n=0;n<20;n++){ // the gateway applies the change within a minute

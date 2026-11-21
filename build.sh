@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 : "${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT to an Android SDK containing platform 30 and build-tools 34.0.0}"
 BT="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+VERSION=$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' AndroidManifest.xml)
 AJ="$ANDROID_SDK_ROOT/platforms/android-30/android.jar"
 mkdir -p build/gen build/classes build/dex build/test
 java -m jdk.compiler/com.sun.tools.javac.Main -d build/test src/local/routervpndot/StateLogic.java src/local/routervpndot/DetectionState.java tests/StateLogicTest.java tests/DetectionStateTest.java
@@ -48,6 +49,6 @@ PY
 if [[ ! -f local-test.jks ]]; then
  keytool -genkeypair -keystore local-test.jks -storepass android -keypass android -alias routerdot -keyalg RSA -keysize 2048 -validity 3650 -dname 'CN=Router VPN Dot Local Test'
 fi
-"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-0.18.apk build/aligned.apk
-"$BT/apksigner" verify --verbose RouterVPNDot-0.18.apk
-"$BT/zipalign" -c 4 RouterVPNDot-0.18.apk
+"$BT/apksigner" sign --ks local-test.jks --ks-key-alias routerdot --ks-pass pass:android --key-pass pass:android --out RouterVPNDot-$VERSION.apk build/aligned.apk
+"$BT/apksigner" verify --verbose RouterVPNDot-$VERSION.apk
+"$BT/zipalign" -c 4 RouterVPNDot-$VERSION.apk

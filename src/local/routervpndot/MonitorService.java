@@ -26,7 +26,7 @@ public class MonitorService extends Service {
  private final DetectionState detection=new DetectionState();
  private final StartupBanner startupBanner=new StartupBanner();
  private final long startedAt=SystemClock.elapsedRealtime();
- private final VpnDuration duration=new VpnDuration();
+ private VpnDuration duration=new VpnDuration();private long savedSince=-1,savedLast=-1;
  private long detectionId=0;
  private Future<?> detecting;
  private static volatile MonitorService instance;
@@ -105,7 +105,7 @@ public class MonitorService extends Service {
  }};
  static int currentState(Context c){
   if(instance!=null&&instance.blocked())detail="Tunnel down: kill switch is blocking internet";
-  if(!running || checkedAt==0){if(instance!=null)instance.duration.update(StateLogic.UNKNOWN,SystemClock.elapsedRealtime());return StateLogic.UNKNOWN;}
+  if(!running || checkedAt==0){if(instance!=null)instance.track(StateLogic.UNKNOWN);return StateLogic.UNKNOWN;}
   MonitorService service=instance;
   if(service==null)return StateLogic.UNKNOWN;
   long now=SystemClock.elapsedRealtime();
@@ -113,12 +113,20 @@ public class MonitorService extends Service {
   if(service.blocked()){state=StateLogic.UNKNOWN;detail="Tunnel down: kill switch is blocking internet";}
   else if(state==StateLogic.NORMAL&&lastIp.equals(service.warningIp)&&!service.routeWarning.isEmpty()&&service.routerSeen.startsWith("CONNECTED")){state=StateLogic.UNKNOWN;detail=service.routeWarning;}
   else if(checkedAt>0)detail=service.detectionDetail;
-  service.duration.update(state,now);return state;
+  service.track(state);return state;
+ }
+ // Saved so the "VPN detected since" time survives updates and restarts; last-seen at most every 30 s.
+ private void track(int state){
+  duration.update(state,System.currentTimeMillis());
+  if(duration.since()!=savedSince||duration.last()-savedLast>30000){
+   savedSince=duration.since();savedLast=duration.last();
+   Config.prefs(this).edit().putLong("vpnSince",savedSince).putLong("vpnLast",savedLast).apply();
+  }
  }
  static String label(int state){return state==StateLogic.VPN ? "VPN detected" : state==StateLogic.NORMAL ? "VPN not detected" : "Unknown / checking";}
  static String connectionAge(){
   MonitorService s=instance;if(s==null||currentState(s)!=StateLogic.VPN)return "";
-  long elapsed=s.duration.elapsed(SystemClock.elapsedRealtime());
+  long elapsed=s.duration.elapsed(System.currentTimeMillis());
   String start=new java.text.SimpleDateFormat("dd MMM yyyy HH:mm",java.util.Locale.US).format(new java.util.Date(System.currentTimeMillis()-elapsed));
   return "\nVPN detected since "+start+"  •  "+VpnDuration.format(elapsed);
  }
@@ -128,7 +136,7 @@ public class MonitorService extends Service {
   return new Notification.Builder(this,"monitor").setSmallIcon(R.drawable.icon).setContentTitle("Router VPN Dot").setContentText(text).setContentIntent(pi).setOngoing(true).setShowWhen(false).build();
  }
  @Override public void onCreate(){
-  super.onCreate();instance=this;Diagnostics.event(this,"Monitoring service created");
+  super.onCreate();duration=new VpnDuration(Config.prefs(this).getLong("vpnSince",-1),Config.prefs(this).getLong("vpnLast",-1));savedSince=duration.since();savedLast=duration.last();instance=this;Diagnostics.event(this,"Monitoring service created");
   NotificationChannel ch=new NotificationChannel("monitor","VPN IP monitoring",NotificationManager.IMPORTANCE_LOW);
   getSystemService(NotificationManager.class).createNotificationChannel(ch);
   lastIp="";checkedAt=0;detail="Checking public IPv4";running=true;
@@ -282,7 +290,7 @@ public class MonitorService extends Service {
   HttpURLConnection c=(HttpURLConnection)new URL(endpoint).openConnection(java.net.Proxy.NO_PROXY);
   boolean classification=endpoint.startsWith("https://proxycheck.io/");
   c.setConnectTimeout(classification?4000:10000);c.setReadTimeout(classification?4000:10000);c.setUseCaches(false);c.setInstanceFollowRedirects(false);
-  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.18");
+  c.setRequestProperty("Cache-Control","no-cache");c.setRequestProperty("User-Agent","RouterVPNDot/0.19");
   try{
    int response=c.getResponseCode();if(response!=200)throw new IOException("HTTP "+response+" from "+new URL(endpoint).getHost());
    ByteArrayOutputStream b=new ByteArrayOutputStream();
