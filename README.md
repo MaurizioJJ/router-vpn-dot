@@ -142,7 +142,8 @@ isn't routed through it**.
 - The app gets the public IPv4 from `api.ipify.org`, falling back to
   `checkip.amazonaws.com`. Each check has a 10-second deadline.
 - It checks at once on a network change and right after a router switch made from
-  the app; otherwise every 60 seconds (every 5 seconds while the last check
+  the app; otherwise every 60 seconds, unless the UniFi status below vouches for it
+  (every 5 seconds while the last check
   failed). The public IP has no change event, so a VPN drop on the router shows up
   within about a minute.
 - **UniFi routers only:** once the router VPN switch is set up (gateway + API
