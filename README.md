@@ -18,13 +18,16 @@ address.
 > Green is a public-database classification, not proof that your tunnel is up. It
 > does not check per-app routing, DNS or IPv6.
 
-If your router is a **UniFi gateway** running a **NordVPN WireGuard** VPN client,
-the app can also, from the TV:
+If your router is a **UniFi gateway** running a **WireGuard** VPN client, from any
+provider, the app can also, from the TV:
 
-- switch that client to another server, in the same country or another one, for
-  streaming apps that refuse some VPN exits ([Switch the router's VPN server](#switch-the-routers-vpn-server));
+- show the router's tunnel status, and warn when a route sends this device around
+  the VPN;
 - pause the VPN for this device only, and turn the kill switch on or off
-  ([Pause VPN and kill switch](#pause-vpn-and-kill-switch-unifi-only)).
+  ([Pause VPN and kill switch](#pause-vpn-and-kill-switch-unifi-only));
+- with **NordVPN**: switch the client to another server, in the same country or
+  another one, for streaming apps that refuse some VPN exits
+  ([Switch the router's VPN server](#switch-the-routers-vpn-server)).
 
 The app keeps itself up to date from this repository's releases, asking first
 ([Updates](#updates)).
@@ -45,6 +48,17 @@ covers what the kill switch can't see:
 
 The kill switch has one cost: when the tunnel is down, the device has no internet at
 all until the tunnel comes back or you pause the VPN.
+
+## Which VPN providers work
+
+| Feature | Works with |
+|---------|------------|
+| The dot (public IP checked against a VPN database) | Any VPN, any router |
+| Router tunnel status, Pause VPN, kill switch, routing warning | Any WireGuard VPN client on a UniFi gateway |
+| Switch server, server name in the status | NordVPN only: they use NordVPN's public server list |
+
+Other providers: the app shows the tunnel as `CONNECTED to 1.2.3.4`, without a
+server name, and **Switch server** isn't available.
 
 ## Requirements
 
@@ -164,7 +178,7 @@ isn't routed through it**.
 
 ## Switch the router's VPN server
 
-Some streaming apps refuse some VPN exits and accept others. The **Router**
+**NordVPN only.** Some streaming apps refuse some VPN exits and accept others. The **Router**
 section of the settings screen moves the router's NordVPN tunnel to another
 server, in the same country or another one, without opening the UniFi app.
 
@@ -212,7 +226,7 @@ If the status line shows an error:
 | Message | Fix |
 |---------|-----|
 | `Failed: the gateway refused the API key (HTTP 401)` | Re-enter the key, or create a new one. |
-| `No WireGuard VPN client on this gateway` | Create it: [step 1](#1-create-the-nordvpn-wireguard-client-on-the-gateway). |
+| `No WireGuard VPN client on this gateway` | Create it: [step 1](#1-create-the-wireguard-client-on-the-gateway). |
 | `Failed: …gateway certificate changed…` | You replaced the gateway or its certificate: **Forget settings**, then set it up again. |
 | `…saved, but the tunnel hasn't reported connected after 60 s` | Select **Refresh VPN status** after a minute; if it stays down, pick another server. |
 
@@ -220,15 +234,20 @@ If the status line shows an error:
 
 - A UniFi gateway running UniFi OS with the Network application (UCG Ultra/Max,
   UDM, UDR, UXG…) and its **default** site.
-- A NordVPN subscription.
+- A WireGuard VPN client on the gateway, from any provider. Server switching needs
+  NordVPN.
 - The TV device on the same LAN as the gateway.
 
 UniFi renames menus between versions. The paths below are from Network 9.x; look
 for the nearest match on yours.
 
-### 1. Create the NordVPN WireGuard client on the gateway
+### 1. Create the WireGuard client on the gateway
 
-NordVPN doesn't hand out WireGuard config files, so you build one from its API:
+**Other providers:** download a WireGuard config file from your provider and add it
+in UniFi under *Settings → VPN → VPN Client → Create New → WireGuard* (upload the
+file), then go to step 2.
+
+**NordVPN:** NordVPN doesn't hand out WireGuard config files, so you build one from its API:
 
 1. **Get your NordLynx private key.** In the Nord Account dashboard open
    *NordVPN → Set up NordVPN manually*, verify by e-mail and **generate a new
