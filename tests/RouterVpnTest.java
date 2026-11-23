@@ -17,6 +17,9 @@ public class RouterVpnTest {
   check(!RouterVpn.unchanged("CONNECTED to 1.2.3.4","CONNECTED to 5.6.7.8"));
   check(!RouterVpn.unchanged("DISCONNECTED","DISCONNECTED"));
   check(!RouterVpn.unchanged("",""));
+  check(RouterVpn.withServer("CONNECTED to 1.2.3.4","al122").equals("CONNECTED to al122 · 1.2.3.4"));
+  check(RouterVpn.withServer("CONNECTED to 1.2.3.4","").equals("CONNECTED to 1.2.3.4"));
+  check(RouterVpn.withServer("DISCONNECTED","al122").equals("DISCONNECTED"));
   java.util.List<RouterVpn.Route> routes=java.util.Arrays.asList(
    new RouterVpn.Route("vpn","VPN","v",true,false,java.util.Arrays.asList("AA:BB"),java.util.Arrays.asList("CLIENT")),
    new RouterVpn.Route("wan","Override","w",true,false,java.util.Arrays.asList("aa:bb"),java.util.Arrays.asList("CLIENT")),
@@ -56,7 +59,7 @@ public class RouterVpnTest {
   }catch(java.io.IOException e){check(e.getMessage().contains("rollback failed"));check(e.getCause().getSuppressed().length==1);}
   catch(Exception e){throw new AssertionError(e);}
   check(calls.get(calls.size()-1).equals("first:true"));
-  System.out.println("35 router VPN tests passed");
+  System.out.println("38 router VPN tests passed");
  }
  static void check(boolean b){if(!b)throw new AssertionError();}
 }

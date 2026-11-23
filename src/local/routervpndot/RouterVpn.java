@@ -65,6 +65,12 @@ public final class RouterVpn {
  // last IP is still valid without asking ipify again.
  public static boolean unchanged(String baseline,String now){return now!=null&&now.startsWith("CONNECTED")&&now.equals(baseline);}
 
+ // "CONNECTED to 1.2.3.4" + "al122" -> "CONNECTED to al122 · 1.2.3.4". Unchanged without a name.
+ public static String withServer(String status,String host){
+  int at=status==null?-1:status.indexOf(" to ");
+  return at<0||host==null||host.isEmpty()?status:status.substring(0,at+4)+host+" · "+status.substring(at+4);
+ }
+
  // WireGuard public keys are 32 bytes in base64: 43 characters plus "=".
  public static boolean wireguardKey(String key){return key!=null&&key.matches("[A-Za-z0-9+/]{43}=");}
 

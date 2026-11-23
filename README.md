@@ -165,7 +165,7 @@ settings once:
 
    ```
    NordVPN-DE → server 187.13.7.194
-   CONNECTED to 187.13.7.194
+   CONNECTED to al168 · 187.13.7.194
    ```
 
    If the gateway has several WireGuard VPN clients, a list opens: pick the one to

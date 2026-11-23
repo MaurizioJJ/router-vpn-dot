@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
    UnifiClient.VpnClient v=c.selected(all);
    if(v==null){if(!all.isEmpty())runOnUiThread(()->pickClient(all));return "No VPN client selected. Use Pick another VPN client.";}
    String st=c.status(v);readRoutes[0]=true;
-   return "VPN client: "+v.name+" · "+st;
+   return "VPN client: "+v.name+" · "+UnifiClient.described(st);
   },()->{if(readRoutes[0])routeAction("read",false);});}
  private void switchCountry(){
   background(c->{
@@ -181,7 +181,7 @@ public class MainActivity extends Activity {
   String[] names=new String[servers.size()];
   for(int i=0;i<names.length;i++){UnifiClient.Server s=servers.get(i);names[i]=RouterVpn.serverLabel(s.hostname,s.ip,s.load,v.peerIp);}
   new AlertDialog.Builder(this).setTitle(country.name+" servers, least loaded first").setItems(names,(d,i)->background(c->{
-   if(servers.get(i).ip.equals(v.peerIp))return "Already on "+servers.get(i).ip+".";
+   if(servers.get(i).ip.equals(v.peerIp))return "Already on "+(servers.get(i).hostname.isEmpty()?servers.get(i).ip:servers.get(i).hostname+" ("+servers.get(i).ip+")")+".";
    String server=c.switchTo(v,country,servers.get(i));
    runOnUiThread(()->routerStatus.setText("Switching to "+server+"…"));
    String ip=server.substring(server.lastIndexOf('(')+1,server.length()-1);
@@ -233,7 +233,7 @@ public class MainActivity extends Activity {
     stopService(new Intent(this,MonitorService.class));return "VPN paused for this TV";
    }
    final boolean flag=allKill;Config.prefs(this).edit().putBoolean("killSwitch",flag).apply();runOnUiThread(()->setKill(flag));
-   return "VPN client: "+vpn.name+" · "+routes.mine.size()+" TV route(s) · "+c.status(vpn);
+   return "VPN client: "+vpn.name+" · "+routes.mine.size()+" TV route(s) · "+UnifiClient.described(c.status(vpn));
   },()->{if(resume[0])startMonitoring("resume");});
  }
  private void pickRoutes(UnifiClient.Routes routes,UnifiClient.VpnClient vpn,String action,boolean on){

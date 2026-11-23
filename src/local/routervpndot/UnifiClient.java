@@ -116,6 +116,25 @@ final class UnifiClient {
   return out;
  }
 
+ // NordVPN name of a server IP ("al122"), "" for an IP NordVPN doesn't list. Network on first sight of an IP;
+ // one ~400 KB list fills the cache for every server. A failed download returns "" and retries next time.
+ private static final Map<String,String> serverNames=new java.util.concurrent.ConcurrentHashMap<>();
+ static String serverName(String ip){
+  if(ip==null||ip.isEmpty())return "";
+  String known=serverNames.get(ip);if(known!=null)return known;
+  try{
+   JSONArray all=new JSONArray(get("https://api.nordvpn.com/v1/servers?limit=0&fields%5Bservers.hostname%5D&fields%5Bservers.station%5D",4<<20));
+   for(int i=0;i<all.length();i++){JSONObject s=all.getJSONObject(i);if(!s.optString("station").isEmpty())serverNames.put(s.optString("station"),s.optString("hostname").replace(".nordvpn.com",""));}
+  }catch(Exception e){return "";}
+  serverNames.putIfAbsent(ip,"");
+  return serverNames.get(ip);
+ }
+ // Tunnel status with the NordVPN server name: "CONNECTED to al122 · 1.2.3.4".
+ static String described(String status){
+  int at=status==null?-1:status.indexOf(" to ");
+  return at<0?status:RouterVpn.withServer(status,serverName(status.substring(at+4)));
+ }
+
  static final class Server {
   final String hostname,ip,key;final int load;
   Server(String hostname,String ip,String key,int load){this.hostname=hostname;this.ip=ip;this.key=key;this.load=load;}

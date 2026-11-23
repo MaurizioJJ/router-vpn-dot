@@ -49,13 +49,13 @@ public class MonitorService extends Service {
  // green and the tunnel status is the same as at the last public-IP check, that counts as a fresh check and
  // ipify isn't asked at all. Any change, or an unreachable gateway, falls back to an immediate IP check.
  static final long ROUTER_MS=15000;
- private String routerSeen="", routerBaseline="", routerProblem="";
+ private String routerSeen="", routerShown="", routerBaseline="", routerProblem="";
  private long routerVouchedAt=0;
  private boolean routerBusy=false;
  private UnifiClient.VpnClient routerClient;
  private final java.util.Set<String> routeLookups=new java.util.HashSet<>();
  private String warningIp="",routeWarning="";
- static String tunnelLine(){MonitorService s=instance;return s==null||s.routerClient==null?"":"Tunnel "+s.routerClient.name+" · "+s.routerSeen;}
+ static String tunnelLine(){MonitorService s=instance;return s==null||s.routerClient==null?"":"Tunnel "+s.routerClient.name+" · "+s.routerShown;}
  private boolean blocked(){return !routerSeen.startsWith("CONNECTED")&&routerProblem.isEmpty()&&routerClient!=null&&Config.prefs(this).getBoolean("killSwitch",false);}
  private void routingWarning(){
   final String ip=lastIp;
@@ -77,16 +77,16 @@ public class MonitorService extends Service {
   if(routerBusy||destroyed||!c.configured()){routerVouchedAt=0;return;}
   routerBusy=true;final String wanted=Config.prefs(this).getString("unifiVpnId","");final UnifiClient.VpnClient known=routerClient;
   try{worker.submit(()->{
-   UnifiClient.VpnClient v=known;String status="",problem="";
+   UnifiClient.VpnClient v=known;String status="",shown="",problem="";
    try{
     if(v==null||(!wanted.isEmpty()&&!wanted.equals(v.id)))v=c.selected(c.clients());
-    if(v==null)problem="no WireGuard VPN client picked";else status=c.status(v);
+    if(v==null)problem="no WireGuard VPN client picked";else{status=c.status(v);shown=UnifiClient.described(status);}
    }catch(Exception e){problem=errorText(e);v=null;}
-   final UnifiClient.VpnClient client=v;final String st=status,failure=problem;
+   final UnifiClient.VpnClient client=v;final String st=status,seen=shown,failure=problem;
    main.post(()->{
     routerBusy=false;if(destroyed)return;routerClient=client;
     if(!failure.equals(routerProblem)){routerProblem=failure;Diagnostics.event(this,failure.isEmpty()?"Router status readable: "+st:"Router status unavailable: "+failure);}
-    routerSeen=st;
+    routerSeen=st;routerShown=seen;
     routingWarning();
     if(failure.isEmpty()&&RouterVpn.unchanged(routerBaseline,st)&&detection.state(lastIp,0)==StateLogic.VPN&&checkedAt>0){
      routerVouchedAt=checkedAt=SystemClock.elapsedRealtime();return;
