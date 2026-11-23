@@ -29,6 +29,23 @@ the app can also, from the TV:
 The app keeps itself up to date from this repository's releases, asking first
 ([Updates](#updates)).
 
+## Why not just the router's kill switch?
+
+Turn the kill switch on: it is the real protection. When the tunnel drops, the router
+blocks the device's traffic, which an app on the device can't do. Router VPN Dot
+covers what the kill switch can't see:
+
+| Situation | Kill switch alone | With Router VPN Dot |
+|-----------|-------------------|--------------------|
+| The tunnel drops | Traffic blocked | Dot goes amber, with the reason |
+| Another traffic route (an old or duplicate rule) sends the device to the normal internet instead of the VPN | Not noticed: that route is valid, so traffic leaves unprotected | Routing warning naming the route that wins |
+| The tunnel is up, but the exit IP isn't recognised as a VPN | Not noticed | Red dot |
+| Which server and country you're on | Only in the router's web interface | On the TV: `CONNECTED to al122 · 1.2.3.4` |
+| A streaming app refuses this VPN exit | Open the router's web interface on another device | Switch server, or pause the VPN for this device only, from the TV |
+
+The kill switch has one cost: when the tunnel is down, the device has no internet at
+all until the tunnel comes back or you pause the VPN.
+
 ## Requirements
 
 - Android 8.0 (API 26) or newer. Built and tested against Android 11 (API 30).
