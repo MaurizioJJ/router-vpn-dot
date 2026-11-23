@@ -83,14 +83,14 @@ public class MainActivity extends Activity {
   brightness("alertBrightness","Red / amber brightness",35);
   preferenceSwitch("pulse","Pulse the dot (slow green / faster red)",true);
   preferenceSwitch("banner","Show warning banner",true);
-  card("ADVANCED","• Resume monitoring after reboot: starts the dot by itself after a power cut or restart.\n• Allow display over other apps: the Android permission the dot needs.\n• Diagnostics: service and error history, useful when something looks wrong.\n• Forget gateway: removes the router address and API key from this TV (Resume VPN first if paused).\n• About & privacy: what the app contacts and what green really means."+(Updater.enabled()?"\n• Check for updates: looks for a newer release on GitHub now. The app also asks by itself when it opens and after a restart: Not now asks again next time, Skip this version waits for the next one.":""));
+  card("ADVANCED","• Resume monitoring after reboot: starts the dot by itself after a power cut or restart.\n• Allow display over other apps: the Android permission the dot needs.\n• Diagnostics: service and error history, useful when something looks wrong.\n• Forget settings: removes the router address and API key from this TV (Resume VPN first if paused).\n• About & privacy: what the app contacts and what green really means."+(Updater.enabled()?"\n• Check for updates: looks for a newer release on GitHub now. The app also asks by itself when it opens and after a restart: Not now asks again next time, Skip this version waits for the next one.":""));
   preferenceSwitch("boot","Resume monitoring after reboot",false);
   button("Allow display over other apps",this::permission);
   button("Diagnostics",()->new AlertDialog.Builder(this).setTitle("Service and crash history").setMessage("Current status: "+MonitorService.label(MonitorService.currentState(this))+"\nIP: "+MonitorService.lastIp+"\n"+MonitorService.detail+"\n\n"+Diagnostics.report(this)).setPositiveButton("Close",null).show());
-  button("Forget gateway",()->{
+  button("Forget settings",()->{
    if(routerWorking){routerStatus.setText("Wait for the current router operation.");return;}
    if(Config.prefs(this).getBoolean("vpnPaused",false)){routerStatus.setText("Resume VPN before forgetting the gateway so the paused routes can be restored.");return;}
-   Config.prefs(this).edit().remove("unifiGateway").remove("unifiApiKey").remove("unifiPin").remove("unifiVpnId").remove("unifiRouteIds").remove("killSwitch").apply();routerStatus.setText("Gateway forgotten.");gatewayButton.setText("Gateway: not set");apiKeyButton.setText("UniFi API key: not set");setKill(false);
+   Config.prefs(this).edit().remove("unifiGateway").remove("unifiApiKey").remove("unifiPin").remove("unifiVpnId").remove("unifiRouteIds").remove("killSwitch").apply();routerStatus.setText("Router settings forgotten.");gatewayButton.setText("Gateway: not set");apiKeyButton.setText("UniFi API key: not set");setKill(false);
   });
   if(Updater.enabled())button("Check for updates",()->checkUpdate(true));
   button("About & privacy ▸",this::about);

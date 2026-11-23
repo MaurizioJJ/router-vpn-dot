@@ -187,7 +187,7 @@ address and DNS stay as you set them. Switching server leaves routes unchanged.
 Pause and Kill switch change only their respective traffic-route fields. A client named like `NordVPN-CZ` is
 renamed to match the new country (`NordVPN-DE`); any other name is left alone.
 
-**Forget gateway** clears the address, key, saved certificate and chosen client.
+**Forget settings** clears the address, key, saved certificate and chosen client.
 
 If the status line shows an error:
 
@@ -195,7 +195,7 @@ If the status line shows an error:
 |---------|-----|
 | `Failed: the gateway refused the API key (HTTP 401)` | Re-enter the key, or create a new one. |
 | `No WireGuard VPN client on this gateway` | Create it: [step 1](#1-create-the-nordvpn-wireguard-client-on-the-gateway). |
-| `Failed: …gateway certificate changed…` | You replaced the gateway or its certificate: **Forget gateway**, then set it up again. |
+| `Failed: …gateway certificate changed…` | You replaced the gateway or its certificate: **Forget settings**, then set it up again. |
 | `…saved, but the tunnel hasn't reported connected after 60 s` | Select **Refresh VPN status** after a minute; if it stays down, pick another server. |
 
 ### What you need
@@ -281,7 +281,7 @@ to edit the VPN client), and delete the key in
 UniFi gateways use a self-signed HTTPS certificate. The app trusts the certificate
 it sees on the first connection and refuses any other one afterwards ("gateway
 certificate changed"). If you replaced the certificate or the gateway, press
-**Forget gateway** and set it up again.
+**Forget settings** and set it up again.
 
 ## Build
 

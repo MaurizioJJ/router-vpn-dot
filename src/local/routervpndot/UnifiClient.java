@@ -181,14 +181,14 @@ final class UnifiClient {
  }
 
  // Trust on first use: UniFi gateways ship a self-signed certificate, so the first one seen is
- // remembered and any later change is refused. "Forget gateway" in settings clears it.
+ // remembered and any later change is refused. "Forget settings" in settings clears it.
  private SSLSocketFactory pinned() throws Exception {
   TrustManager tm=new X509TrustManager(){
    public void checkClientTrusted(X509Certificate[] chain,String type){}
    public void checkServerTrusted(X509Certificate[] chain,String type) throws java.security.cert.CertificateException {
     String seen=sha256(chain[0]),pin=prefs.getString("unifiPin","");
     if(pin.isEmpty())prefs.edit().putString("unifiPin",seen).apply();
-    else if(!pin.equals(seen))throw new java.security.cert.CertificateException("gateway certificate changed: use Forget gateway if you replaced it");
+    else if(!pin.equals(seen))throw new java.security.cert.CertificateException("gateway certificate changed: use Forget settings if you replaced it");
    }
    public X509Certificate[] getAcceptedIssuers(){return new X509Certificate[0];}
   };
